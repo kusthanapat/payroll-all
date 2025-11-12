@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import {
   User,
   Home,
@@ -23,9 +23,8 @@ import {
   getZipcode,
 } from "@/lib/thailand-address";
 
-export const dynamic = "force-dynamic";
-
-export default function Page() {
+// Component ที่ใช้ useSearchParams
+function EmployeeUpdateForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const idFromUrl = searchParams.get("id");
@@ -101,28 +100,27 @@ export default function Page() {
     bank_account_number: "",
 
     // เลขภาษี
-    tax_identification_number: "", // เลขประจำตัวผู้เสียภาษี
-    social_security_number: "", // เลขประกันสังคม
-    provident_fund_number: "", // เลขกองทุนสำรองเลี้ยงชีพ
-    studentloan_number: "", // เลข กยศ.
-    retirement_mutual_fund_number: "", // เลข ภ.ง.ด.
-    rmf_number: "", // เลข rmf
-    life_insurance_number: "", // เลขประกันชีวิต
+    tax_identification_number: "",
+    social_security_number: "",
+    provident_fund_number: "",
+    studentloan_number: "",
+    retirement_mutual_fund_number: "",
+    rmf_number: "",
+    life_insurance_number: "",
 
     // หักค่าเบี้ย
-    social_security_contribution: "", // หักประกันสังคม
-    company_provident_fund: "", // บริษัทสมทบ กองทุนสำรองเลี้ยงชีพ
-    employee_provident_fund: "", // พนักงานสมทบ กองทุนสำรองเลี้ยงชีพ
-    student_loan_deduction: "", // หักค่า กยศ.
-    retirement_mutual_fund_deduction: "", // หักค่า ภ.ง.ด.91.
-    rmf_deduction: "", // หัก rmf
-    life_insurance_premium: "", // หักประกันชีวิต
-    housing_loan_interest: "", // หักเบี้ยที่อยู่อาศัย
+    social_security_contribution: "",
+    company_provident_fund: "",
+    employee_provident_fund: "",
+    student_loan_deduction: "",
+    retirement_mutual_fund_deduction: "",
+    rmf_deduction: "",
+    life_insurance_premium: "",
+    housing_loan_interest: "",
   });
 
-  // State สำหรับเก็บ options ของ dropdown
   const [registeredDistricts, setRegisteredDistricts] = useState<string[]>([]);
-  const [registeredSubdistricts, setRegisteredSubdistricts] = useState<
+  const [registeredSubdistricts, setRegisteredSubdistricts] = useState
     string[]
   >([]);
   const [currentDistricts, setCurrentDistricts] = useState<string[]>([]);
@@ -151,25 +149,6 @@ export default function Page() {
       console.error("Error fetching employee:", error);
     }
   };
-
-  // const handleSearch = async () => {
-  //   if (!searchQuery.trim()) {
-  //     alert("กรุณากรอกชื่อพนักงานที่ต้องการค้นหา");
-  //     return;
-  //   }
-
-  //   try {
-  //     const response = await fetch(`/api/employees?name=${searchQuery}`);
-  //     const result = await response.json();
-  //     if (result.success) {
-  //       setEmployees(result.data);
-  //       setShowResults(true);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error searching:", error);
-  //     alert("เกิดข้อผิดพลาดในการค้นหา");
-  //   }
-  // };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -227,7 +206,6 @@ export default function Page() {
       daily_wage: employee.daily_wage ? employee.daily_wage.toString() : "",
       hourly_wage: employee.hourly_wage ? employee.hourly_wage.toString() : "",
 
-      // ที่อยู่ตามทะเบียนบ้าน
       registered_house_no: employee.registered_house_no || "",
       registered_village: employee.registered_village || "",
       registered_soi: employee.registered_soi || "",
@@ -236,7 +214,6 @@ export default function Page() {
       registered_district: employee.registered_district || "",
       registered_subdistrict: employee.registered_subdistrict || "",
       registered_postcode: employee.registered_postcode || "",
-      // ที่อยู่ปัจจุบัน
       current_house_no: employee.current_house_no || "",
       current_village: employee.current_village || "",
       current_soi: employee.current_soi || "",
@@ -246,17 +223,14 @@ export default function Page() {
       current_subdistrict: employee.current_subdistrict || "",
       current_postcode: employee.current_postcode || "",
 
-      // ครอบครัว
       marital_status: employee.marital_status || "",
       spouse_title_name: employee.spouse_title_name || "",
       spouse_name: employee.spouse_name || "",
       number_of_children: employee.number_of_children || "",
 
-      // ธนาคาร
       bank_id: employee.bank_id || "",
       bank_account_number: employee.bank_account_number || "",
 
-      // เลขภาษี
       tax_identification_number: employee.tax_identification_number || "",
       social_security_number: employee.social_security_number || "",
       provident_fund_number: employee.provident_fund_number || "",
@@ -266,7 +240,6 @@ export default function Page() {
       rmf_number: employee.rmf_number || "",
       life_insurance_number: employee.life_insurance_number || "",
 
-      // การเงิน
       social_security_contribution: employee.social_security_contribution
         ? employee.social_security_contribution.toString()
         : "",
@@ -298,7 +271,7 @@ export default function Page() {
   };
 
   const handleChange = (
-    e: React.ChangeEvent<
+    e: React.ChangeEvent
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
@@ -309,7 +282,6 @@ export default function Page() {
     }));
   };
 
-  // Handle เมื่อเลือกจังหวัดทะเบียนบ้าน
   useEffect(() => {
     if (formData.registered_province) {
       const districts = getDistricts(formData.registered_province);
@@ -325,7 +297,6 @@ export default function Page() {
     }
   }, [formData.registered_province]);
 
-  // Handle เมื่อเลือกอำเภอทะเบียนบ้าน
   useEffect(() => {
     if (formData.registered_province && formData.registered_district) {
       const subdistricts = getSubdistricts(
@@ -343,7 +314,6 @@ export default function Page() {
     }
   }, [formData.registered_district]);
 
-  // Handle เมื่อเลือกตำบลทะเบียนบ้าน
   useEffect(() => {
     if (
       formData.registered_province &&
@@ -362,7 +332,6 @@ export default function Page() {
     }
   }, [formData.registered_subdistrict]);
 
-  // Handle เมื่อเลือกจังหวัดปัจจุบัน
   useEffect(() => {
     if (formData.current_province) {
       const districts = getDistricts(formData.current_province);
@@ -370,7 +339,6 @@ export default function Page() {
     }
   }, [formData.current_province]);
 
-  // Handle เมื่อเลือกอำเภอปัจจุบัน
   useEffect(() => {
     if (formData.current_province && formData.current_district) {
       const subdistricts = getSubdistricts(
@@ -381,7 +349,6 @@ export default function Page() {
     }
   }, [formData.current_district]);
 
-  // Handle เมื่อเลือกตำบลปัจจุบัน
   useEffect(() => {
     if (
       formData.current_province &&
@@ -413,7 +380,6 @@ export default function Page() {
       }
 
       const cleanedData = {
-        // ข้อมูลส่วนตัว
         id: formData.id,
         employee_id: formData.employee_id,
         title_name: formData.title_name,
@@ -450,7 +416,6 @@ export default function Page() {
           ? parseFloat(formData.hourly_wage)
           : null,
 
-        // ที่อยู่ตามทะเบียนบ้าน
         registered_house_no: formData.registered_house_no,
         registered_village: formData.registered_village,
         registered_soi: formData.registered_soi,
@@ -460,7 +425,6 @@ export default function Page() {
         registered_subdistrict: formData.registered_subdistrict,
         registered_postcode: formData.registered_postcode,
 
-        // ที่อยู่ปัจจุบัน
         current_house_no: formData.current_house_no,
         current_village: formData.current_village,
         current_soi: formData.current_soi,
@@ -470,17 +434,14 @@ export default function Page() {
         current_subdistrict: formData.current_subdistrict,
         current_postcode: formData.current_postcode,
 
-        // ครอบครัว
         marital_status: formData.marital_status,
         spouse_title_name: formData.spouse_title_name,
         spouse_name: formData.spouse_name,
         number_of_children: formData.number_of_children,
 
-        // ธนาคาร
         bank_id: formData.bank_id,
         bank_account_number: formData.bank_account_number,
 
-        // เลขภาษี
         tax_identification_number: formData.tax_identification_number,
         social_security_number: formData.social_security_number,
         provident_fund_number: formData.provident_fund_number,
@@ -489,7 +450,6 @@ export default function Page() {
         rmf_number: formData.rmf_number,
         life_insurance_number: formData.life_insurance_number,
 
-        // การเงิน
         social_security_contribution: formData.social_security_contribution
           ? parseFloat(formData.social_security_contribution)
           : null,
@@ -506,7 +466,7 @@ export default function Page() {
           formData.retirement_mutual_fund_deduction
             ? parseFloat(formData.retirement_mutual_fund_deduction)
             : null,
-        rrmf_deduction: formData.rmf_deduction
+        rmf_deduction: formData.rmf_deduction
           ? parseFloat(formData.rmf_deduction)
           : null,
         life_insurance_premium: formData.life_insurance_premium
@@ -805,7 +765,7 @@ export default function Page() {
                   onChange={handleChange}
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
                 />
-              </div>
+</div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -826,7 +786,7 @@ export default function Page() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  คำนำหน้าชื่อ คู่สมรส *
+                  คำนำหน้าชื่อ คู่สมรส
                 </label>
                 <select
                   name="spouse_title_name"
@@ -843,7 +803,7 @@ export default function Page() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ชื่อ-นามสกุล คู่สมรส *
+                  ชื่อ-นามสกุล คู่สมรส
                 </label>
                 <input
                   type="text"
@@ -881,11 +841,12 @@ export default function Page() {
               </h2>
             </div>
 
-            {/* ข้อมูลที่อยู่ตามทะเบียนบ้าน */}
+            {/* ที่อยู่ตามทะเบียนบ้าน */}
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">ที่อยู่ตามบัตรประชาชน</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ที่อยู่ตามบัตรประชาชน เลขที่ *
+                  เลขที่ *
                 </label>
                 <input
                   type="text"
@@ -1009,11 +970,12 @@ export default function Page() {
               </div>
             </div>
 
-            {/* ข้อมูลที่อยู่ปัจจุบัน */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+            {/* ที่อยู่ปัจจุบัน */}
+            <h3 className="text-lg font-semibold text-gray-700 mb-4 mt-8">ที่อยู่ปัจจุบัน</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ที่อยู่ปัจจุบัน เลขที่ *
+                  เลขที่ *
                 </label>
                 <input
                   type="text"
@@ -1715,5 +1677,23 @@ export default function Page() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Component หลักที่ export พร้อม Suspense
+export default function Page() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
+          </div>
+        </div>
+      }
+    >
+      <EmployeeUpdateForm />
+    </Suspense>
   );
 }
