@@ -507,7 +507,7 @@ export default function ImportData({
                 นำเข้าข้อมูลพนักงาน
               </h2>
               <p className="text-sm text-gray-600">
-                รองรับไฟล์ Excel หลาย Sheet (.xlsx, .xls) และ CSV (.csv)
+                รองรับไฟล์ Excel (.xlsx, .xls) และ CSV (.csv)
               </p>
             </div>
           </div>
@@ -551,23 +551,21 @@ export default function ImportData({
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
               <AlertCircle size={18} />
-              รูปแบบไฟล์ Excel ที่รองรับ
+              รูปแบบไฟล์ Excel, CSV ที่รองรับ
             </h3>
             <div className="text-sm text-blue-700 space-y-2">
               <p>
-                📋 <strong>Sheet ที่ต้องมี:</strong>
+                <strong>Sheet ที่ต้องมี:</strong>
               </p>
               <ul className="ml-4 space-y-1">
-                <li>• personal_data (ข้อมูลส่วนตัว)</li>
-                <li>• personal_work_detail (ข้อมูลการทำงาน)</li>
-                <li>• personal_tax (ข้อมูลภาษีและบัญชี)</li>
-                <li>• personal_money (ข้อมูลการหักเงิน)</li>
-                <li>• personal_registered_address (ที่อยู่ตามทะเบียนบ้าน)</li>
-                <li>• personal_current_address (ที่อยู่ปัจจุบัน)</li>
+                <li>• personal_data</li>
+                <li>• personal_work_detail</li>
+                <li>• personal_tax</li>
+                <li>• personal_money</li>
+                <li>• personal_registered_address</li>
+                <li>• personal_current_address</li>
+                <li>• fifty_tawi</li>
               </ul>
-              <p className="mt-2 text-xs">
-                💡 <em>หากไฟล์มี Sheet fifty_tawi จะถูกข้ามไป (ไม่นำเข้า)</em>
-              </p>
             </div>
           </div>
 
