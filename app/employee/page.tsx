@@ -304,14 +304,23 @@ export default function Page() {
         hourly_wage: formData.hourly_wage
           ? parseFloat(formData.hourly_wage)
           : null,
+        social_security_contribution: formData.social_security_contribution
+          ? parseFloat(formData.social_security_contribution)
+          : null,
         company_provident_fund: formData.company_provident_fund
           ? parseFloat(formData.company_provident_fund)
           : null,
         employee_provident_fund: formData.employee_provident_fund
           ? parseFloat(formData.employee_provident_fund)
           : null,
-        social_security_contribution: formData.social_security_contribution
-          ? parseFloat(formData.social_security_contribution)
+        student_loan_deduction: formData.student_loan_deduction
+          ? parseFloat(formData.student_loan_deduction)
+          : null,
+        retirement_mutual_fund_deduction: formData.retirement_mutual_fund_deduction
+          ? parseFloat(formData.retirement_mutual_fund_deduction)
+          : null,
+        rmf_deduction: formData.rmf_deduction
+          ? parseFloat(formData.rmf_deduction)
           : null,
         life_insurance_premium: formData.life_insurance_premium
           ? parseFloat(formData.life_insurance_premium)
@@ -319,10 +328,6 @@ export default function Page() {
         housing_loan_interest: formData.housing_loan_interest
           ? parseFloat(formData.housing_loan_interest)
           : null,
-        teacher_fund: formData.teacher_fund
-          ? parseFloat(formData.teacher_fund)
-          : null,
-        rmf: formData.rmf ? parseFloat(formData.rmf) : null,
       };
 
       // log data
