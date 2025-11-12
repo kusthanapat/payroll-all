@@ -269,7 +269,7 @@ function EmployeeUpdateForm() {
   };
 
   const handleChange = (
-    e: React.ChangeEvent
+    e: React.ChangeEvent<
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {

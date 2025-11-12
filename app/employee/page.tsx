@@ -316,9 +316,10 @@ export default function Page() {
         student_loan_deduction: formData.student_loan_deduction
           ? parseFloat(formData.student_loan_deduction)
           : null,
-        retirement_mutual_fund_deduction: formData.retirement_mutual_fund_deduction
-          ? parseFloat(formData.retirement_mutual_fund_deduction)
-          : null,
+        retirement_mutual_fund_deduction:
+          formData.retirement_mutual_fund_deduction
+            ? parseFloat(formData.retirement_mutual_fund_deduction)
+            : null,
         rmf_deduction: formData.rmf_deduction
           ? parseFloat(formData.rmf_deduction)
           : null,
