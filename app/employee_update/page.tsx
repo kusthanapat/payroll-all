@@ -120,9 +120,7 @@ function EmployeeUpdateForm() {
   });
 
   const [registeredDistricts, setRegisteredDistricts] = useState<string[]>([]);
-  const [registeredSubdistricts, setRegisteredSubdistricts] = useState
-    string[]
-  >([]);
+  const [registeredSubdistricts, setRegisteredSubdistricts] = useState<string[]>([]);
   const [currentDistricts, setCurrentDistricts] = useState<string[]>([]);
   const [currentSubdistricts, setCurrentSubdistricts] = useState<string[]>([]);
 
