@@ -23,6 +23,8 @@ import {
   getZipcode,
 } from "@/lib/thailand-address";
 
+export const dynamic = "force-dynamic";
+
 export default function Page() {
   const router = useRouter();
   const searchParams = useSearchParams();
