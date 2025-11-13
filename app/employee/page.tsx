@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   User,
   Home,
@@ -10,7 +10,6 @@ import {
   Clock,
   DollarSign,
   ArrowLeft,
-  MapPin,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import TimePicker from "react-time-picker";
@@ -22,339 +21,534 @@ import {
   getZipcode,
 } from "@/lib/thailand-address";
 
+const FORM_SECTIONS = [
+  {
+    id: "personal",
+    title: "ข้อมูลส่วนตัว",
+    icon: User,
+    color: "blue",
+    fields: [
+      {
+        name: "employee_id",
+        label: "รหัสพนักงาน",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "title_name",
+        label: "คำนำหน้าชื่อ",
+        type: "select",
+        required: true,
+        options: ["", "นาย", "นาง", "นางสาว"],
+      },
+      { name: "name", label: "ชื่อ-นามสกุล", type: "text", required: true },
+      { name: "nickname", label: "ชื่อเล่น", type: "text" },
+      {
+        name: "gender",
+        label: "เพศ",
+        type: "select",
+        required: true,
+        options: ["", "ชาย", "หญิง", "อื่นๆ"],
+      },
+      { name: "birth_date", label: "วันเกิด", type: "date", required: true },
+      { name: "nationality", label: "สัญชาติ", type: "text", required: true },
+      { name: "race", label: "เชื้อชาติ", type: "text", required: true },
+      { name: "religion", label: "ศาสนา", type: "text" },
+      { name: "height", label: "ส่วนสูง (ซม.)", type: "number" },
+      { name: "weight", label: "น้ำหนัก (กก.)", type: "number" },
+      { name: "mobile_phone", label: "มือถือ", type: "text", required: true },
+      {
+        name: "marital_status",
+        label: "สถานภาพ",
+        type: "select",
+        required: true,
+        options: ["", "โสด", "สมรส", "หย่า"],
+      },
+      {
+        name: "spouse_title_name",
+        label: "คำนำหน้าชื่อ คู่สมรส",
+        type: "select",
+        options: ["", "นาย", "นาง", "นางสาว"],
+      },
+      { name: "spouse_name", label: "ชื่อ-นามสกุล คู่สมรส", type: "text" },
+      {
+        name: "number_of_children",
+        label: "จำนวนบุตร",
+        type: "number",
+        step: "1",
+      },
+    ],
+  },
+  {
+    id: "idcard",
+    title: "ข้อมูลบัตรประชาชน",
+    icon: CreditCard,
+    color: "green",
+    fields: [
+      {
+        name: "national_id",
+        label: "เลขบัตรประชาชน",
+        type: "text",
+        required: true,
+        maxLength: 13,
+      },
+      {
+        name: "national_idcard_issue_date",
+        label: "วันที่ออกบัตร",
+        type: "date",
+        required: true,
+      },
+      {
+        name: "national_idcard_expiry_date",
+        label: "วันที่หมดอายุ",
+        type: "date",
+        required: true,
+      },
+      {
+        name: "national_idcard_issued_place",
+        label: "สถานที่ออกบัตร",
+        type: "text",
+        required: true,
+      },
+    ],
+  },
+  {
+    id: "work",
+    title: "ข้อมูลการทำงาน",
+    icon: Briefcase,
+    color: "purple",
+    fields: [
+      { name: "position", label: "ตำแหน่ง", type: "text", required: true },
+      { name: "division", label: "ฝ่าย", type: "text", required: true },
+      { name: "department", label: "แผนก", type: "text", required: true },
+      {
+        name: "start_working_date",
+        label: "วันที่เริ่มงาน",
+        type: "date",
+        required: true,
+      },
+      { name: "end_working_date", label: "วันที่ออก", type: "date" },
+      {
+        name: "employee_type",
+        label: "ประเภทพนักงาน",
+        type: "select",
+        required: true,
+        options: [
+          "",
+          "พนักงานประจำ",
+          "พนักงานรายวัน",
+          "พนักงานสัญญาจ้าง",
+          "พนักงานพาร์ทไทม์",
+          "ช่วงทดลองงาน",
+          "ฟรีแลนซ์",
+          "นักศึกษาฝึกงาน",
+        ],
+      },
+      { name: "shift", label: "กะการทำงาน", type: "text" },
+    ],
+  },
+  {
+    id: "bank",
+    title: "ข้อมูลธนาคารและเลขประจำตัว",
+    icon: Calendar,
+    color: "indigo",
+    fields: [
+      { name: "bank_id", label: "รหัสธนาคาร", type: "text", required: true },
+      {
+        name: "bank_account_number",
+        label: "เลขบัญชีธนาคาร",
+        type: "text",
+        required: true,
+      },
+      {
+        name: "tax_identification_number",
+        label: "เลขประจำตัวผู้เสียภาษี",
+        type: "text",
+      },
+      { name: "social_security_number", label: "เลขประกันสังคม", type: "text" },
+      {
+        name: "provident_fund_number",
+        label: "เลขกองทุนสำรองเลี้ยงชีพ",
+        type: "text",
+      },
+      { name: "studentloan_number", label: "เลข กยศ.", type: "text" },
+      {
+        name: "retirement_mutual_fund_number",
+        label: "เลข ภ.ง.ด.91",
+        type: "text",
+      },
+      { name: "rmf_number", label: "เลข rmf", type: "text" },
+      { name: "life_insurance_number", label: "เลขประกันชีวิต", type: "text" },
+    ],
+  },
+  {
+    id: "salary",
+    title: "ข้อมูลเงินเดือนและสวัสดิการ",
+    icon: DollarSign,
+    color: "pink",
+    fields: [
+      { name: "salary", label: "เงินเดือน (บาท)", type: "number" },
+      { name: "daily_wage", label: "ค่าแรงรายวัน (บาท)", type: "number" },
+      { name: "hourly_wage", label: "ค่าแรงรายชั่วโมง (บาท)", type: "number" },
+      {
+        name: "social_security_contribution",
+        label: "เงินสมทบประกันสังคม",
+        type: "number",
+      },
+      {
+        name: "company_provident_fund",
+        label: "กองทุนสำรองเลี้ยงชีพ (บริษัท)",
+        type: "number",
+      },
+      {
+        name: "employee_provident_fund",
+        label: "กองทุนสำรองเลี้ยงชีพ (พนักงาน)",
+        type: "number",
+      },
+      { name: "student_loan_deduction", label: "หัก กยศ.", type: "number" },
+      {
+        name: "retirement_mutual_fund_deduction",
+        label: "หัก ภ.ง.ด.91",
+        type: "number",
+      },
+      { name: "rmf_deduction", label: "หักเบี้ย RMF", type: "number" },
+      {
+        name: "life_insurance_premium",
+        label: "เบี้ยประกันชีวิต",
+        type: "number",
+      },
+      {
+        name: "housing_loan_interest",
+        label: "ดอกเบี้ยเงินกู้ที่อยู่อาศัย",
+        type: "number",
+      },
+    ],
+  },
+];
+
+const TIME_FIELDS = [
+  { name: "start_time", label: "เวลาเริ่มงาน" },
+  { name: "start_lunch", label: "เวลาพักเที่ยง (เริ่ม)" },
+  { name: "end_lunch", label: "เวลาพักเที่ยง (สิ้นสุด)" },
+  { name: "end_time", label: "เวลาเลิกงาน" },
+];
+
+const ADDRESS_FIELDS = [
+  { name: "house_no", label: "เลขที่", required: true },
+  { name: "village", label: "หมู่ที่/หมู่บ้าน" },
+  { name: "soi", label: "ซอย" },
+  { name: "road", label: "ถนน" },
+];
+
 export default function Page() {
   const router = useRouter();
-
   const isCopyingAddress = useRef(false);
+  const [formData, setFormData] = useState<any>({});
+  const [regDistricts, setRegDistricts] = useState<string[]>([]);
+  const [regSubdistricts, setRegSubdistricts] = useState<string[]>([]);
+  const [currDistricts, setCurrDistricts] = useState<string[]>([]);
+  const [currSubdistricts, setCurrSubdistricts] = useState<string[]>([]);
 
-  const [formData, setFormData] = useState({
-    // ข้อมูลส่วนตัว
-    employee_id: "",
-    title_name: "",
-    name: "",
-    gender: "",
-    nickname: "",
-    birth_date: "",
-    national_id: "",
-    national_idcard_issue_date: "",
-    national_idcard_expiry_date: "",
-    national_idcard_issued_place: "",
-    mobile_phone: "",
-    nationality: "",
-    race: "",
-    religion: "",
-    height: "",
-    weight: "",
-    employee_type: "",
-    shift: "",
-    start_time: "",
-    start_lunch: "",
-    end_lunch: "",
-    end_time: "",
-    start_working_date: "",
-    end_working_date: "",
-    salary: "",
-    daily_wage: "",
-    hourly_wage: "",
+  const provinces = useMemo(() => getProvinces(), []);
 
-    // ที่อยู่ตามทะเบียนบ้าน
-    registered_house_no: "",
-    registered_village: "",
-    registered_soi: "",
-    registered_road: "",
-    registered_province: "",
-    registered_district: "",
-    registered_subdistrict: "",
-    registered_postcode: "",
-    // ที่อยู่ปัจจุบัน
-    current_house_no: "",
-    current_village: "",
-    current_soi: "",
-    current_road: "",
-    current_province: "",
-    current_district: "",
-    current_subdistrict: "",
-    current_postcode: "",
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev: any) => ({ ...prev, [name]: value }));
+  };
 
-    // ตำแหน่ง
-    position: "",
-    division: "",
-    department: "",
-
-    // ครอบครัว
-    marital_status: "",
-    spouse_title_name: "",
-    spouse_name: "",
-    number_of_children: "",
-
-    // ธนาคาร
-    bank_id: "",
-    bank_account_number: "",
-
-    // เลขภาษี
-    tax_identification_number: "", // เลขประจำตัวผู้เสียภาษี
-    social_security_number: "", // เลขประกันสังคม
-    provident_fund_number: "", // เลขกองทุนสำรองเลี้ยงชีพ
-    studentloan_number: "", // เลข กยศ.
-    retirement_mutual_fund_number: "", // เลข ภ.ง.ด.
-    rmf_number: "", // เลข rmf
-    life_insurance_number: "", // เลขประกันชีวิต
-
-    // หักค่าเบี้ย
-    social_security_contribution: "", // หักประกันสังคม
-    company_provident_fund: "", // บริษัทสมทบ กองทุนสำรองเลี้ยงชีพ
-    employee_provident_fund: "", // พนักงานสมทบ กองทุนสำรองเลี้ยงชีพ
-    student_loan_deduction: "", // หักค่า กยศ.
-    retirement_mutual_fund_deduction: "", // หักค่า ภ.ง.ด.91.
-    rmf_deduction: "", // หัก rmf
-    life_insurance_premium: "", // หักประกันชีวิต
-    housing_loan_interest: "", // หักเบี้ยที่อยู่อาศัย
-  });
-
-  // State สำหรับเก็บ options ของ dropdown
-  const [registeredDistricts, setRegisteredDistricts] = useState<string[]>([]);
-  const [registeredSubdistricts, setRegisteredSubdistricts] = useState<
-    string[]
-  >([]);
-  const [currentDistricts, setCurrentDistricts] = useState<string[]>([]);
-  const [currentSubdistricts, setCurrentSubdistricts] = useState<string[]>([]);
-
-  const provinces = getProvinces();
-
-  // Handle เมื่อเลือกจังหวัดทะเบียนบ้าน
+  // Address cascade effects
   useEffect(() => {
     if (formData.registered_province) {
-      const districts = getDistricts(formData.registered_province);
-      setRegisteredDistricts(districts);
-      setFormData((prev) => ({
-        ...prev,
+      setRegDistricts(getDistricts(formData.registered_province));
+      setFormData((p: any) => ({
+        ...p,
         registered_district: "",
         registered_subdistrict: "",
         registered_postcode: "",
       }));
-    } else {
-      setRegisteredDistricts([]);
-    }
+    } else setRegDistricts([]);
   }, [formData.registered_province]);
 
-  // Handle เมื่อเลือกอำเภอทะเบียนบ้าน
   useEffect(() => {
     if (formData.registered_province && formData.registered_district) {
-      const subdistricts = getSubdistricts(
-        formData.registered_province,
-        formData.registered_district
+      setRegSubdistricts(
+        getSubdistricts(
+          formData.registered_province,
+          formData.registered_district
+        )
       );
-      setRegisteredSubdistricts(subdistricts);
-      setFormData((prev) => ({
-        ...prev,
+      setFormData((p: any) => ({
+        ...p,
         registered_subdistrict: "",
         registered_postcode: "",
       }));
-    } else {
-      setRegisteredSubdistricts([]);
-    }
+    } else setRegSubdistricts([]);
   }, [formData.registered_district]);
 
-  // Handle เมื่อเลือกตำบลทะเบียนบ้าน
   useEffect(() => {
     if (
       formData.registered_province &&
       formData.registered_district &&
       formData.registered_subdistrict
     ) {
-      const zipcode = getZipcode(
+      const zip = getZipcode(
         formData.registered_province,
         formData.registered_district,
         formData.registered_subdistrict
       );
-      setFormData((prev) => ({
-        ...prev,
-        registered_postcode: zipcode,
-      }));
+      setFormData((p: any) => ({ ...p, registered_postcode: zip }));
     }
   }, [formData.registered_subdistrict]);
 
-  // Handle เมื่อเลือกจังหวัดปัจจุบัน
   useEffect(() => {
     if (formData.current_province) {
-      const districts = getDistricts(formData.current_province);
-      setCurrentDistricts(districts);
-
-      // เช็คว่ากำลังคัดลอกอยู่หรือไม่
+      setCurrDistricts(getDistricts(formData.current_province));
       if (!isCopyingAddress.current) {
-        setFormData((prev) => ({
-          ...prev,
+        setFormData((p: any) => ({
+          ...p,
           current_district: "",
           current_subdistrict: "",
           current_postcode: "",
         }));
       }
-    } else {
-      setCurrentDistricts([]);
-    }
+    } else setCurrDistricts([]);
   }, [formData.current_province]);
 
-  // Handle เมื่อเลือกอำเภอปัจจุบัน
   useEffect(() => {
     if (formData.current_province && formData.current_district) {
-      const subdistricts = getSubdistricts(
-        formData.current_province,
-        formData.current_district
+      setCurrSubdistricts(
+        getSubdistricts(formData.current_province, formData.current_district)
       );
-      setCurrentSubdistricts(subdistricts);
-
-      // เช็คว่ากำลังคัดลอกอยู่หรือไม่
       if (!isCopyingAddress.current) {
-        setFormData((prev) => ({
-          ...prev,
+        setFormData((p: any) => ({
+          ...p,
           current_subdistrict: "",
           current_postcode: "",
         }));
       }
-    } else {
-      setCurrentSubdistricts([]);
-    }
+    } else setCurrSubdistricts([]);
   }, [formData.current_district]);
 
-  // Handle เมื่อเลือกตำบลปัจจุบัน
   useEffect(() => {
     if (
       formData.current_province &&
       formData.current_district &&
       formData.current_subdistrict
     ) {
-      const zipcode = getZipcode(
+      const zip = getZipcode(
         formData.current_province,
         formData.current_district,
         formData.current_subdistrict
       );
-      setFormData((prev) => ({
-        ...prev,
-        current_postcode: zipcode,
-      }));
+      setFormData((p: any) => ({ ...p, current_postcode: zip }));
     }
   }, [formData.current_subdistrict]);
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  // ฟังก์ชันคัดลอกที่อยู่ (แก้ไขแล้ว)
   const copyRegisteredToCurrent = () => {
-    // ตั้ง flag เป็น true ก่อนคัดลอก
     isCopyingAddress.current = true;
-
-    // Load districts และ subdistricts ของจังหวัดที่จะคัดลอก
     if (formData.registered_province) {
-      const districts = getDistricts(formData.registered_province);
-      setCurrentDistricts(districts);
-
+      setCurrDistricts(getDistricts(formData.registered_province));
       if (formData.registered_district) {
-        const subdistricts = getSubdistricts(
-          formData.registered_province,
-          formData.registered_district
+        setCurrSubdistricts(
+          getSubdistricts(
+            formData.registered_province,
+            formData.registered_district
+          )
         );
-        setCurrentSubdistricts(subdistricts);
       }
     }
-
-    // คัดลอกข้อมูลทั้งหมด
-    setFormData((prev) => ({
-      ...prev,
-      current_house_no: prev.registered_house_no,
-      current_village: prev.registered_village,
-      current_soi: prev.registered_soi,
-      current_road: prev.registered_road,
-      current_province: prev.registered_province,
-      current_district: prev.registered_district,
-      current_subdistrict: prev.registered_subdistrict,
-      current_postcode: prev.registered_postcode,
+    setFormData((p: any) => ({
+      ...p,
+      current_house_no: p.registered_house_no,
+      current_village: p.registered_village,
+      current_soi: p.registered_soi,
+      current_road: p.registered_road,
+      current_province: p.registered_province,
+      current_district: p.registered_district,
+      current_subdistrict: p.registered_subdistrict,
+      current_postcode: p.registered_postcode,
     }));
-
-    // รอให้ state update เสร็จแล้วค่อยปิด flag
     setTimeout(() => {
       isCopyingAddress.current = false;
     }, 100);
   };
 
   const handleSubmit = async () => {
+    if (!formData.employee_id || !formData.name || !formData.national_id) {
+      alert("กรุณากรอกข้อมูลที่จำเป็น (รหัสพนักงาน, ชื่อ, เลขบัตรประชาชน)");
+      return;
+    }
+
+    const numFields = [
+      "height",
+      "weight",
+      "salary",
+      "daily_wage",
+      "hourly_wage",
+      "social_security_contribution",
+      "company_provident_fund",
+      "employee_provident_fund",
+      "student_loan_deduction",
+      "retirement_mutual_fund_deduction",
+      "rmf_deduction",
+      "life_insurance_premium",
+      "housing_loan_interest",
+    ];
+
+    const cleanedData: any = { ...formData };
+    numFields.forEach(
+      (f) => (cleanedData[f] = formData[f] ? parseFloat(formData[f]) : null)
+    );
+    cleanedData.end_working_date = formData.end_working_date || null;
+
     try {
-      if (!formData.employee_id || !formData.name || !formData.national_id) {
-        alert("กรุณากรอกข้อมูลที่จำเป็น (รหัสพนักงาน, ชื่อ, เลขบัตรประชาชน)");
-        return;
-      }
-
-      const cleanedData = {
-        ...formData,
-        height: formData.height ? parseFloat(formData.height) : null,
-        weight: formData.weight ? parseFloat(formData.weight) : null,
-        salary: formData.salary ? parseFloat(formData.salary) : null,
-        end_working_date: formData.end_working_date || null,
-        daily_wage: formData.daily_wage
-          ? parseFloat(formData.daily_wage)
-          : null,
-        hourly_wage: formData.hourly_wage
-          ? parseFloat(formData.hourly_wage)
-          : null,
-        social_security_contribution: formData.social_security_contribution
-          ? parseFloat(formData.social_security_contribution)
-          : null,
-        company_provident_fund: formData.company_provident_fund
-          ? parseFloat(formData.company_provident_fund)
-          : null,
-        employee_provident_fund: formData.employee_provident_fund
-          ? parseFloat(formData.employee_provident_fund)
-          : null,
-        student_loan_deduction: formData.student_loan_deduction
-          ? parseFloat(formData.student_loan_deduction)
-          : null,
-        retirement_mutual_fund_deduction:
-          formData.retirement_mutual_fund_deduction
-            ? parseFloat(formData.retirement_mutual_fund_deduction)
-            : null,
-        rmf_deduction: formData.rmf_deduction
-          ? parseFloat(formData.rmf_deduction)
-          : null,
-        life_insurance_premium: formData.life_insurance_premium
-          ? parseFloat(formData.life_insurance_premium)
-          : null,
-        housing_loan_interest: formData.housing_loan_interest
-          ? parseFloat(formData.housing_loan_interest)
-          : null,
-      };
-
-      // log data
-      console.log("Data to send:", cleanedData);
-
-      const response = await fetch("/api/employees", {
+      const res = await fetch("/api/employees", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cleanedData),
       });
-
-      const result = await response.json();
-
+      const result = await res.json();
       if (result.success) {
         alert("บันทึกข้อมูลพนักงานสำเร็จ!");
         router.push("/");
-      } else {
-        alert("เกิดข้อผิดพลาด: " + result.error);
-      }
+      } else alert("เกิดข้อผิดพลาด: " + result.error);
     } catch (error) {
       console.error("Network error:", error);
       alert("ไม่สามารถเชื่อมต่อกับ server ได้");
     }
   };
+
+  const renderField = (field: any) => {
+    if (field.type === "select") {
+      return (
+        <select
+          name={field.name}
+          value={formData[field.name] || ""}
+          onChange={handleChange}
+          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+        >
+          {(field.options || []).map((opt: string) => (
+            <option key={opt} value={opt}>
+              {opt || `เลือก${field.label}`}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    return (
+      <input
+        type={field.type}
+        name={field.name}
+        value={formData[field.name] || ""}
+        onChange={handleChange}
+        step={field.step || (field.type === "number" ? "0.01" : undefined)}
+        maxLength={field.maxLength}
+        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+      />
+    );
+  };
+
+  const renderAddress = (
+    prefix: string,
+    title: string,
+    districts: string[],
+    subdistricts: string[]
+  ) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="md:col-span-2 lg:col-span-3">
+        <h3 className="text-sm font-semibold text-gray-600 mb-2">{title}</h3>
+      </div>
+
+      {ADDRESS_FIELDS.map((f) => (
+        <div key={f.name}>
+          <label className="block text-sm font-semibold text-gray-700 mb-2">
+            {f.label} {f.required && "*"}
+          </label>
+          <input
+            type="text"
+            name={`${prefix}_${f.name}`}
+            value={formData[`${prefix}_${f.name}`] || ""}
+            onChange={handleChange}
+            className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+          />
+        </div>
+      ))}
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          จังหวัด *
+        </label>
+        <select
+          name={`${prefix}_province`}
+          value={formData[`${prefix}_province`] || ""}
+          onChange={handleChange}
+          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+        >
+          <option value="">เลือกจังหวัด</option>
+          {provinces.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          เขต/อำเภอ *
+        </label>
+        <select
+          name={`${prefix}_district`}
+          value={formData[`${prefix}_district`] || ""}
+          onChange={handleChange}
+          disabled={!formData[`${prefix}_province`]}
+          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors disabled:bg-gray-100"
+        >
+          <option value="">เลือกเขต/อำเภอ</option>
+          {districts.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          แขวง/ตำบล *
+        </label>
+        <select
+          name={`${prefix}_subdistrict`}
+          value={formData[`${prefix}_subdistrict`] || ""}
+          onChange={handleChange}
+          disabled={!formData[`${prefix}_district`]}
+          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors disabled:bg-gray-100"
+        >
+          <option value="">เลือกแขวง/ตำบล</option>
+          {subdistricts.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          รหัสไปรษณีย์ *
+        </label>
+        <input
+          type="text"
+          name={`${prefix}_postcode`}
+          value={formData[`${prefix}_postcode`] || ""}
+          readOnly
+          className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed"
+        />
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-8 px-4">
@@ -374,248 +568,37 @@ export default function Page() {
         </div>
 
         <div className="space-y-6">
-          {/* ข้อมูลส่วนตัว */}
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <User className="text-blue-600" size={24} />
+          {/* Regular Sections */}
+          {FORM_SECTIONS.map((section) => (
+            <div
+              key={section.id}
+              className="bg-white rounded-2xl shadow-lg p-8"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className={`bg-${section.color}-100 p-3 rounded-lg`}>
+                  <section.icon
+                    className={`text-${section.color}-600`}
+                    size={24}
+                  />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {section.title}
+                </h2>
               </div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                ข้อมูลส่วนตัว
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  รหัสพนักงาน *
-                </label>
-                <input
-                  type="text"
-                  name="employee_id"
-                  value={formData.employee_id}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  คำนำหน้าชื่อ *
-                </label>
-                <select
-                  name="title_name"
-                  value={formData.title_name}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                >
-                  <option value="">เลือกคำนำหน้าชื่อ</option>
-                  <option value="นาย">นาย/MR</option>
-                  <option value="นาง">นาง/MRS</option>
-                  <option value="นางสาว">นางสาว/MS</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ชื่อ-นามสกุล *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ชื่อเล่น
-                </label>
-                <input
-                  type="text"
-                  name="nickname"
-                  value={formData.nickname}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เพศ *
-                </label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                >
-                  <option value="">เลือกเพศ</option>
-                  <option value="ชาย">ชาย</option>
-                  <option value="หญิง">หญิง</option>
-                  <option value="อื่นๆ">อื่นๆ</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  วันเกิด *
-                </label>
-                <input
-                  type="date"
-                  name="birth_date"
-                  value={formData.birth_date}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  สัญชาติ *
-                </label>
-                <input
-                  type="text"
-                  name="nationality"
-                  value={formData.nationality}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เชื้อชาติ *
-                </label>
-                <input
-                  type="text"
-                  name="race"
-                  value={formData.race}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ศาสนา
-                </label>
-                <input
-                  type="text"
-                  name="religion"
-                  value={formData.religion}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ส่วนสูง (ซม.)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  name="height"
-                  value={formData.height}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  น้ำหนัก (กก.)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  name="weight"
-                  value={formData.weight}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  มือถือ *
-                </label>
-                <input
-                  type="text"
-                  name="mobile_phone"
-                  value={formData.mobile_phone}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  สถานภาพ *
-                </label>
-                <select
-                  name="marital_status"
-                  value={formData.marital_status}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                >
-                  <option value="">เลือกสถานภาพ</option>
-                  <option value="โสด">โสด</option>
-                  <option value="สมรส">สมรส</option>
-                  <option value="หย่า">หย่า</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  คำนำหน้าชื่อ คู่สมรส *
-                </label>
-                <select
-                  name="spouse_title_name"
-                  value={formData.spouse_title_name}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                >
-                  <option value="">เลือกคำนำหน้าชื่อ</option>
-                  <option value="นาย">นาย/MR</option>
-                  <option value="นาง">นาง/MRS</option>
-                  <option value="นางสาว">นางสาว/MS</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ชื่อ-นามสกุล คู่สมรส *
-                </label>
-                <input
-                  type="text"
-                  name="spouse_name"
-                  value={formData.spouse_name}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  จำนวนบุตร
-                </label>
-                <input
-                  type="number"
-                  step="1"
-                  name="number_of_children"
-                  value={formData.number_of_children}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {section.fields.map((field) => (
+                  <div key={field.name}>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      {field.label} {field.required && "*"}
+                    </label>
+                    {renderField(field)}
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          ))}
 
-          {/* ข้อมูลที่อยู่ */}
+          {/* Address Section */}
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="bg-blue-100 p-3 rounded-lg">
@@ -625,139 +608,15 @@ export default function Page() {
                 ข้อมูลที่อยู่
               </h2>
             </div>
+            {renderAddress(
+              "registered",
+              "ที่อยู่ตามบัตรประชาชน",
+              regDistricts,
+              regSubdistricts
+            )}
 
-            {/* ข้อมูลที่อยู่ตามทะเบียนบ้าน */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ที่อยู่ตามบัตรประชาชน เลขที่ *
-                </label>
-                <input
-                  type="text"
-                  name="registered_house_no"
-                  value={formData.registered_house_no}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  หมู่ที่/หมู่บ้าน
-                </label>
-                <input
-                  type="text"
-                  name="registered_village"
-                  value={formData.registered_village}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ซอย
-                </label>
-                <input
-                  type="text"
-                  name="registered_soi"
-                  value={formData.registered_soi}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ถนน
-                </label>
-                <input
-                  type="text"
-                  name="registered_road"
-                  value={formData.registered_road}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  จังหวัด *
-                </label>
-                <select
-                  name="registered_province"
-                  value={formData.registered_province}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                >
-                  <option value="">เลือกจังหวัด</option>
-                  {provinces.map((province) => (
-                    <option key={province} value={province}>
-                      {province}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เขต/อำเภอ *
-                </label>
-                <select
-                  name="registered_district"
-                  value={formData.registered_district}
-                  onChange={handleChange}
-                  disabled={!formData.registered_province}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="">เลือกเขต/อำเภอ</option>
-                  {registeredDistricts.map((district) => (
-                    <option key={district} value={district}>
-                      {district}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  แขวง/ตำบล *
-                </label>
-                <select
-                  name="registered_subdistrict"
-                  value={formData.registered_subdistrict}
-                  onChange={handleChange}
-                  disabled={!formData.registered_district}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="">เลือกแขวง/ตำบล</option>
-                  {registeredSubdistricts.map((subdistrict) => (
-                    <option key={subdistrict} value={subdistrict}>
-                      {subdistrict}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  รหัสไปรษณีย์ *
-                </label>
-                <input
-                  type="text"
-                  name="registered_postcode"
-                  value={formData.registered_postcode}
-                  onChange={handleChange}
-                  readOnly
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed"
-                />
-              </div>
-            </div>
-
-            {/* ปุ่มคัดลอกที่อยู่ */}
             <div className="flex justify-start my-6">
               <button
-                type="button"
                 onClick={copyRegisteredToCurrent}
                 className="px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all shadow-md hover:shadow-lg"
               >
@@ -765,316 +624,17 @@ export default function Page() {
               </button>
             </div>
 
-            {/* ข้อมูลที่อยู่ปัจจุบัน */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ที่อยู่ปัจจุบัน เลขที่ *
-                </label>
-                <input
-                  type="text"
-                  name="current_house_no"
-                  value={formData.current_house_no}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  หมู่ที่/หมู่บ้าน
-                </label>
-                <input
-                  type="text"
-                  name="current_village"
-                  value={formData.current_village}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ซอย
-                </label>
-                <input
-                  type="text"
-                  name="current_soi"
-                  value={formData.current_soi}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ถนน
-                </label>
-                <input
-                  type="text"
-                  name="current_road"
-                  value={formData.current_road}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  จังหวัด *
-                </label>
-                <select
-                  name="current_province"
-                  value={formData.current_province}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                >
-                  <option value="">เลือกจังหวัด</option>
-                  {provinces.map((province) => (
-                    <option key={province} value={province}>
-                      {province}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เขต/อำเภอ *
-                </label>
-                <select
-                  name="current_district"
-                  value={formData.current_district}
-                  onChange={handleChange}
-                  disabled={!formData.current_province}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="">เลือกเขต/อำเภอ</option>
-                  {currentDistricts.map((district) => (
-                    <option key={district} value={district}>
-                      {district}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  แขวง/ตำบล *
-                </label>
-                <select
-                  name="current_subdistrict"
-                  value={formData.current_subdistrict}
-                  onChange={handleChange}
-                  disabled={!formData.current_district}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-                >
-                  <option value="">เลือกแขวง/ตำบล</option>
-                  {currentSubdistricts.map((subdistrict) => (
-                    <option key={subdistrict} value={subdistrict}>
-                      {subdistrict}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  รหัสไปรษณีย์ *
-                </label>
-                <input
-                  type="text"
-                  name="current_postcode"
-                  value={formData.current_postcode}
-                  onChange={handleChange}
-                  readOnly
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed"
-                />
-              </div>
+            <div className="mt-10">
+              {renderAddress(
+                "current",
+                "ที่อยู่ปัจจุบัน",
+                currDistricts,
+                currSubdistricts
+              )}
             </div>
           </div>
 
-          {/* ข้อมูลบัตรประชาชน */}
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-green-100 p-3 rounded-lg">
-                <CreditCard className="text-green-600" size={24} />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                ข้อมูลบัตรประชาชน
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เลขบัตรประชาชน *
-                </label>
-                <input
-                  type="text"
-                  name="national_id"
-                  value={formData.national_id}
-                  onChange={handleChange}
-                  maxLength={13}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  วันที่ออกบัตร *
-                </label>
-                <input
-                  type="date"
-                  name="national_idcard_issue_date"
-                  value={formData.national_idcard_issue_date}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  วันที่หมดอายุ *
-                </label>
-                <input
-                  type="date"
-                  name="national_idcard_expiry_date"
-                  value={formData.national_idcard_expiry_date}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  สถานที่ออกบัตร *
-                </label>
-                <input
-                  type="text"
-                  name="national_idcard_issued_place"
-                  value={formData.national_idcard_issued_place}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ข้อมูลการทำงาน */}
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-purple-100 p-3 rounded-lg">
-                <Briefcase className="text-purple-600" size={24} />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                ข้อมูลการทำงาน
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ตำแหน่ง *
-                </label>
-                <input
-                  type="text"
-                  name="position"
-                  value={formData.position}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ฝ่าย *
-                </label>
-                <input
-                  type="text"
-                  name="division"
-                  value={formData.division}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  แผนก *
-                </label>
-                <input
-                  type="text"
-                  name="department"
-                  value={formData.department}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  วันที่เริ่มงาน *
-                </label>
-                <input
-                  type="date"
-                  name="start_working_date"
-                  value={formData.start_working_date}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  วันที่ออก
-                </label>
-                <input
-                  type="date"
-                  name="end_working_date"
-                  value={formData.end_working_date}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ประเภทพนักงาน *
-                </label>
-                <select
-                  name="employee_type"
-                  value={formData.employee_type}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                >
-                  <option value="">เลือกประเภทพนักงาน</option>
-                  <option value="พนักงานประจำ">พนักงานประจำ</option>
-                  <option value="พนักงานรายวัน">พนักงานรายวัน</option>
-                  <option value="พนักงานสัญญาจ้าง">พนักงานสัญญาจ้าง</option>
-                  <option value="พนักงานพาร์ทไทม์">พนักงานพาร์ทไทม์</option>
-                  <option value="ช่วงทดลองงาน">ช่วงทดลองงาน</option>
-                  <option value="ฟรีแลนซ์">ฟรีแลนซ์</option>
-                  <option value="นักศึกษาฝึกงาน">นักศึกษาฝึกงาน</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  กะการทำงาน
-                </label>
-                <input
-                  type="text"
-                  name="shift"
-                  value={formData.shift}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* เวลาทำงาน */}
+          {/* Time Section */}
           <div className="bg-white rounded-2xl shadow-lg p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="bg-orange-100 p-3 rounded-lg">
@@ -1082,386 +642,35 @@ export default function Page() {
               </div>
               <h2 className="text-2xl font-bold text-gray-800">เวลาทำงาน</h2>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เวลาเริ่มงาน
-                </label>
-                <TimePicker
-                  onChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      start_time: value || "",
-                    }))
-                  }
-                  value={formData.start_time}
-                  disableClock
-                  format="HH:mm"
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เวลาพักเที่ยง (เริ่ม)
-                </label>
-                <TimePicker
-                  onChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      start_lunch: value || "",
-                    }))
-                  }
-                  value={formData.start_lunch}
-                  disableClock
-                  format="HH:mm"
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เวลาพักเที่ยง (สิ้นสุด)
-                </label>
-                <TimePicker
-                  onChange={(value) =>
-                    setFormData((prev) => ({ ...prev, end_lunch: value || "" }))
-                  }
-                  value={formData.end_lunch}
-                  disableClock
-                  format="HH:mm"
-                  className="w-full"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เวลาเลิกงาน
-                </label>
-                <TimePicker
-                  onChange={(value) =>
-                    setFormData((prev) => ({ ...prev, end_time: value || "" }))
-                  }
-                  value={formData.end_time}
-                  disableClock
-                  format="HH:mm"
-                  className="w-full"
-                />
-              </div>
+              {TIME_FIELDS.map((f) => (
+                <div key={f.name}>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    {f.label}
+                  </label>
+                  <TimePicker
+                    onChange={(val) =>
+                      setFormData((p: any) => ({ ...p, [f.name]: val || "" }))
+                    }
+                    value={formData[f.name]}
+                    disableClock
+                    format="HH:mm"
+                    className="w-full"
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* ข้อมูลธนาคารและเลขประจำตัว */}
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-indigo-100 p-3 rounded-lg">
-                <Calendar className="text-indigo-600" size={24} />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                ข้อมูลธนาคารและเลขประจำตัว
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  รหัสธนาคาร *
-                </label>
-                <input
-                  type="text"
-                  name="bank_id"
-                  value={formData.bank_id}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เลขบัญชีธนาคาร *
-                </label>
-                <input
-                  type="text"
-                  name="bank_account_number"
-                  value={formData.bank_account_number}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เลขประจำตัวผู้เสียภาษี
-                </label>
-                <input
-                  type="text"
-                  name="tax_identification_number"
-                  value={formData.tax_identification_number}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เลขประกันสังคม
-                </label>
-                <input
-                  type="text"
-                  name="social_security_number"
-                  value={formData.social_security_number}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เลขกองทุนสำรองเลี้ยงชีพ
-                </label>
-                <input
-                  type="text"
-                  name="provident_fund_number"
-                  value={formData.provident_fund_number}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เลข กยศ.
-                </label>
-                <input
-                  type="text"
-                  name="studentloan_number"
-                  value={formData.studentloan_number}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เลข ภ.ง.ด.91
-                </label>
-                <input
-                  type="text"
-                  name="retirement_mutual_fund_number"
-                  value={formData.retirement_mutual_fund_number}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เลข rmf
-                </label>
-                <input
-                  type="text"
-                  name="rmf_number"
-                  value={formData.rmf_number}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เลขประกันชีวิต
-                </label>
-                <input
-                  type="text"
-                  name="life_insurance_number"
-                  value={formData.life_insurance_number}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ข้อมูลเงินเดือนและสวัสดิการ */}
-          <div className="bg-white rounded-2xl shadow-lg p-8">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-pink-100 p-3 rounded-lg">
-                <DollarSign className="text-pink-600" size={24} />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">
-                ข้อมูลเงินเดือนและสวัสดิการ
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เงินเดือน (บาท)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="salary"
-                  value={formData.salary}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ค่าแรงรายวัน (บาท)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="daily_wage"
-                  value={formData.daily_wage}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ค่าแรงรายชั่วโมง (บาท)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="hourly_wage"
-                  value={formData.hourly_wage}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เงินสมทบประกันสังคม
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="social_security_contribution"
-                  value={formData.social_security_contribution}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  กองทุนสำรองเลี้ยงชีพ (บริษัท)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="company_provident_fund"
-                  value={formData.company_provident_fund}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  กองทุนสำรองเลี้ยงชีพ (พนักงาน)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="employee_provident_fund"
-                  value={formData.employee_provident_fund}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  หัก กยศ.
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="student_loan_deduction"
-                  value={formData.student_loan_deduction}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  หัก ภ.ง.ด.91
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="retirement_mutual_fund_deduction"
-                  value={formData.retirement_mutual_fund_deduction}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  หักเบี้ย RMF
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="rmf_deduction"
-                  value={formData.rmf_deduction}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  เบี้ยประกันชีวิต
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="life_insurance_premium"
-                  value={formData.life_insurance_premium}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ดอกเบี้ยเงินกู้ที่อยู่อาศัย
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="housing_loan_interest"
-                  value={formData.housing_loan_interest}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ปุ่มบันทึก */}
+          {/* Action Buttons */}
           <div className="flex gap-4 justify-end">
             <button
-              type="button"
               onClick={() => router.push("/")}
               className="px-8 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
             >
               ยกเลิก
             </button>
             <button
-              type="button"
               onClick={handleSubmit}
               className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl"
             >

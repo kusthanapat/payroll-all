@@ -1,7 +1,23 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { User, Plus, Edit, Upload, Trash2, Search } from "lucide-react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
+import {
+  User,
+  Plus,
+  Edit,
+  Upload,
+  Trash2,
+  Search,
+  Filter,
+  X,
+  Check,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import ImportData from "@/components/import_data";
 
@@ -9,91 +25,282 @@ interface Employee {
   id: string;
   employee_id: string;
   name: string;
+  line_id: string;
   position: string;
   division: string;
   department: string;
-  salary: number;
-  company_provident_fund: number;
-  employee_provident_fund: number;
-  social_security_contribution: number;
-  life_insurance_premium: number;
-  housing_loan_interest: number;
-  teacher_fund: number;
-  rmf: number;
+  salary: string;
+  national_id: string;
+  bank_id: string;
+  bank_account_number: string;
+  tax_identification_number: string;
+  social_security_number: string;
+  provident_fund_number: string;
+  studentloan_number: string;
+  retirement_mutual_fund_number: string;
+  rmf_number: string;
+  life_insurance_number: string;
 }
+
+type FilterState = Record<string, string[]>;
+
+const COLUMNS = [
+  { key: "employee_id", label: "รหัสพนักงาน", align: "left" },
+  { key: "name", label: "ชื่อ-นามสกุล", align: "left" },
+  { key: "line_id", label: "Line ID", align: "left" },
+  { key: "position", label: "ตำแหน่ง", align: "left" },
+  { key: "division", label: "ฝ่าย", align: "left" },
+  { key: "department", label: "แผนก", align: "left" },
+  { key: "salary", label: "เงินเดือน", align: "right", format: "number" },
+  { key: "national_id", label: "เลขประจำตัวประชาชน", align: "left" },
+  { key: "bank_id", label: "รหัสธนาคาร", align: "left" },
+  { key: "bank_account_number", label: "เลขบัญชีธนาคาร", align: "left" },
+  {
+    key: "tax_identification_number",
+    label: "เลขประจำตัวผู้เสียภาษี",
+    align: "left",
+  },
+  { key: "social_security_number", label: "เลขประกันสังคม", align: "left" },
+  {
+    key: "provident_fund_number",
+    label: "เลขกองทุนสำรองเลี้ยชีพ",
+    align: "left",
+  },
+  { key: "studentloan_number", label: "เลข กยศ.", align: "left" },
+  { key: "retirement_mutual_fund_number", label: "เลข ภงด.91", align: "left" },
+  { key: "rmf_number", label: "เลข RMF", align: "left" },
+  { key: "life_insurance_number", label: "เลขประกันชีวิต", align: "left" },
+] as const;
+
+// Fixed button styles mapping
+const BUTTON_STYLES = {
+  blue: "px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2",
+  purple:
+    "px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2",
+  lime: "px-6 py-3 bg-gradient-to-r from-lime-600 to-lime-700 text-white rounded-lg font-semibold hover:from-lime-700 hover:to-lime-800 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2",
+};
 
 export default function Page() {
   const router = useRouter();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
-
   const [showImportPopup, setShowImportPopup] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({});
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [sortedData, setSortedData] = useState<Employee[]>([]);
+  const filterRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
-
-  const fetchEmployees = async () => {
+  const fetchEmployees = useCallback(async (search = "") => {
     try {
-      const response = await fetch("/api/employees");
-      const result = await response.json();
-      if (result.success) {
-        setEmployees(result.data);
-      }
+      const url = search
+        ? `/api/employees?search=${encodeURIComponent(search)}`
+        : "/api/employees";
+      const res = await fetch(url);
+      const result = await res.json();
+      if (result.success) setEmployees(result.data || []);
     } catch (error) {
       console.error("Error fetching employees:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      fetchEmployees();
-      return;
-    }
+  useEffect(() => {
+    fetchEmployees();
+  }, [fetchEmployees]);
 
-    try {
-      // ค้นหาทั้งจากชื่อและรหัสพนักงาน
-      const response = await fetch(`/api/employees?search=${searchQuery}`);
-      const result = await response.json();
-      if (result.success) {
-        setEmployees(result.data);
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setActiveFilter(null);
       }
-    } catch (error) {
-      console.error("Error searching:", error);
-    }
-  };
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const handleDelete = async (id: string) => {
+  const filteredEmployees = useMemo(() => {
+    let result = sortedData.length ? sortedData : employees;
+    Object.entries(filters).forEach(([col, vals]) => {
+      if (vals.length) {
+        result = result.filter((emp) =>
+          vals.includes(emp[col as keyof Employee]?.toString() || "-")
+        );
+      }
+    });
+    return result;
+  }, [employees, filters, sortedData]);
+
+  const handleSearch = () =>
+    searchQuery.trim() ? fetchEmployees(searchQuery) : fetchEmployees();
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!confirm("คุณต้องการลบข้อมูลพนักงานนี้ใช่หรือไม่?")) return;
-
     try {
-      const response = await fetch(`/api/employees?id=${id}`, {
-        method: "DELETE",
-      });
-      const result = await response.json();
-
+      const res = await fetch(`/api/employees?id=${id}`, { method: "DELETE" });
+      const result = await res.json();
       if (result.success) {
         alert("ลบข้อมูลสำเร็จ!");
         fetchEmployees();
-      } else {
-        alert("เกิดข้อผิดพลาด: " + result.error);
-      }
+      } else alert("เกิดข้อผิดพลาด: " + result.error);
     } catch (error) {
       console.error("Error deleting:", error);
       alert("ไม่สามารถลบข้อมูลได้");
     }
   };
 
-  const formatNumber = (num: number | null | undefined) => {
-    if (!num) return "-";
-    return new Intl.NumberFormat("th-TH", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(num);
+  const handleEdit = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/employee_update?id=${id}`);
   };
+
+  const formatValue = (value: any, format?: string) => {
+    if (!value) return "-";
+    if (format === "number") {
+      const num = typeof value === "string" ? parseFloat(value) : value;
+      return isNaN(num)
+        ? value
+        : new Intl.NumberFormat("th-TH", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }).format(num);
+    }
+    return value;
+  };
+
+  const FilterDropdown = ({
+    column,
+    label,
+  }: {
+    column: keyof Employee;
+    label: string;
+  }) => {
+    const uniqueValues = useMemo(
+      () =>
+        Array.from(
+          new Set(employees.map((emp) => emp[column]?.toString() || "-"))
+        ).sort(),
+      [column]
+    );
+    const selectedValues = filters[column] || [];
+    const isActive = selectedValues.length > 0;
+
+    const handleSort = (dir: "asc" | "desc") => {
+      const sorted = [...filteredEmployees].sort((a, b) => {
+        const aVal = a[column]?.toString() || "";
+        const bVal = b[column]?.toString() || "";
+        const aNum = parseFloat(aVal),
+          bNum = parseFloat(bVal);
+
+        if (!isNaN(aNum) && !isNaN(bNum))
+          return dir === "asc" ? aNum - bNum : bNum - aNum;
+        return dir === "asc"
+          ? aVal.localeCompare(bVal, "th")
+          : bVal.localeCompare(aVal, "th");
+      });
+      setSortedData(sorted);
+      setActiveFilter(null);
+    };
+
+    const toggleValue = (value: string) => {
+      setFilters((prev) => {
+        const current = prev[column] || [];
+        return {
+          ...prev,
+          [column]: current.includes(value)
+            ? current.filter((v) => v !== value)
+            : [...current, value],
+        };
+      });
+    };
+
+    return (
+      <div
+        className="relative inline-block"
+        ref={activeFilter === column ? filterRef : null}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveFilter(activeFilter === column ? null : column);
+          }}
+          className={`ml-2 p-1 rounded hover:bg-gray-200 transition-colors ${
+            isActive ? "text-blue-600" : "text-gray-400"
+          }`}
+          title="Filter"
+        >
+          <Filter size={14} />
+        </button>
+
+        {activeFilter === column && (
+          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 min-w-[220px] max-h-[400px] overflow-hidden flex flex-col">
+            <div className="p-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+              <span className="text-sm font-semibold text-gray-700">
+                กรอง: {label}
+              </span>
+              {isActive && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFilters((prev) => {
+                      const n = { ...prev };
+                      delete n[column];
+                      return n;
+                    });
+                  }}
+                  className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1"
+                >
+                  <X size={12} />
+                  ล้าง
+                </button>
+              )}
+            </div>
+
+            <div className="border-b border-gray-200 bg-gray-50">
+              {["asc", "desc"].map((dir) => (
+                <button
+                  key={dir}
+                  onClick={() => handleSort(dir as "asc" | "desc")}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex items-center gap-2 text-gray-700 border-t border-gray-200 first:border-t-0"
+                >
+                  <span className="text-lg">{dir === "asc" ? "↑" : "↓"}</span>
+                  {dir === "asc"
+                    ? "เรียงจากน้อยไปมาก (A → Z, 0 → 9)"
+                    : "เรียงจากมากไปน้อย (Z → A, 9 → 0)"}
+                </button>
+              ))}
+            </div>
+
+            <div className="overflow-y-auto max-h-[240px]">
+              {uniqueValues.map((value) => (
+                <label
+                  key={value}
+                  className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(value)}
+                    onChange={() => toggleValue(value)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700 truncate">{value}</span>
+                  {selectedValues.includes(value) && (
+                    <Check size={14} className="ml-auto text-blue-600" />
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const activeFiltersCount = Object.values(filters).filter(
+    (f) => f.length
+  ).length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-8 px-4">
@@ -108,36 +315,42 @@ export default function Page() {
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
           <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-              <button
-                onClick={() => router.push("/employee")}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-              >
-                <Plus size={20} />
-                เพิ่มพนักงานใหม่
-              </button>
-
-              <button
-                onClick={() => router.push("/employee_update")}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-purple-800 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-              >
-                <Edit size={20} />
-                อัปเดตข้อมูลพนักงาน
-              </button>
-
-              <button
-                onClick={() => setShowImportPopup(true)}
-                className="px-6 py-3 bg-gradient-to-r from-lime-600 to-lime-700 text-white rounded-lg font-semibold hover:from-lime-700 hover:to-lime-800 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-              >
-                <Upload size={20} />
-                นำเข้าข้อมูลพนักงาน
-              </button>
+              {[
+                {
+                  label: "เพิ่มพนักงานใหม่",
+                  icon: Plus,
+                  color: "blue" as const,
+                  path: "/employee",
+                },
+                {
+                  label: "อัปเดตข้อมูลพนักงาน",
+                  icon: Edit,
+                  color: "purple" as const,
+                  path: "/employee_update",
+                },
+                {
+                  label: "นำเข้าข้อมูลพนักงาน",
+                  icon: Upload,
+                  color: "lime" as const,
+                  onClick: () => setShowImportPopup(true),
+                },
+              ].map(({ label, icon: Icon, color, path, onClick }) => (
+                <button
+                  key={label}
+                  onClick={onClick || (() => router.push(path!))}
+                  className={BUTTON_STYLES[color]}
+                >
+                  <Icon size={20} />
+                  {label}
+                </button>
+              ))}
             </div>
 
             <div className="flex gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-64">
                 <input
                   type="text"
-                  placeholder="ค้นหาชื่อหรือรหัสพนักงาน..."
+                  placeholder="ค้นหา: ชื่อ, รหัส, แผนก, ฝ่าย, ตำแหน่ง"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && handleSearch()}
@@ -158,6 +371,24 @@ export default function Page() {
           </div>
         </div>
 
+        {activeFiltersCount > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Filter size={18} className="text-blue-600" />
+              <span className="text-sm font-semibold text-blue-800">
+                กรองอยู่ {activeFiltersCount} คอลัมน์
+              </span>
+            </div>
+            <button
+              onClick={() => setFilters({})}
+              className="text-sm text-red-600 hover:text-red-800 font-semibold flex items-center gap-1"
+            >
+              <X size={16} />
+              ล้างทั้งหมด
+            </button>
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           <div className="flex items-center gap-3 p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
             <div className="bg-blue-100 p-3 rounded-lg">
@@ -165,7 +396,7 @@ export default function Page() {
             </div>
             <h2 className="text-2xl font-bold text-gray-800">รายชื่อพนักงาน</h2>
             <span className="ml-auto bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
-              ทั้งหมด {employees.length} คน
+              แสดง {filteredEmployees.length} / {employees.length} คน
             </span>
           </div>
 
@@ -174,126 +405,86 @@ export default function Page() {
               <div className="flex items-center justify-center h-64">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               </div>
-            ) : employees.length === 0 ? (
+            ) : filteredEmployees.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 text-gray-500">
                 <User size={48} className="mb-4 opacity-50" />
                 <p className="text-lg font-semibold">ไม่พบข้อมูลพนักงาน</p>
-                <p className="text-sm">กรุณาเพิ่มข้อมูลพนักงานใหม่</p>
+                <p className="text-sm">
+                  {activeFiltersCount > 0
+                    ? "ลองปรับเงื่อนไขการกรองใหม่"
+                    : "กรุณาเพิ่มข้อมูลพนักงานใหม่"}
+                </p>
               </div>
             ) : (
               <table className="w-full">
                 <thead className="bg-gray-50 border-b-2 border-gray-200">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      รหัสพนักงาน
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      ชื่อ-นามสกุล
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      ตำแหน่ง
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      ฝ่าย
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      แผนก
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      เงินเดือน
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      กองทุน (บริษัท)
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      กองทุน (พนักงาน)
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      ประกันสังคม
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      ประกันชีวิต
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      ดอกเบี้ยที่อยู่
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      กองทุนครู
-                    </th>
-                    <th className="px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
-                      RMF
-                    </th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    {COLUMNS.map((col) => (
+                      <th
+                        key={col.key}
+                        className={`px-6 py-4 text-${col.align} text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap`}
+                      >
+                        <div
+                          className={`flex items-center ${
+                            col.align === "right" ? "justify-end" : ""
+                          }`}
+                        >
+                          {col.label}
+                          <FilterDropdown
+                            column={col.key as keyof Employee}
+                            label={col.label}
+                          />
+                        </div>
+                      </th>
+                    ))}
+                    <th className="px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                       จัดการ
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {employees.map((employee, index) => (
+                  {filteredEmployees.map((emp, i) => (
                     <tr
-                      key={employee.id}
-                      className={`hover:bg-blue-50 transition-colors ${
-                        index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                      key={emp.id}
+                      onClick={() =>
+                        router.push(`/employee_update?id=${emp.id}`)
+                      }
+                      className={`hover:bg-blue-50 transition-colors cursor-pointer ${
+                        i % 2 === 0 ? "bg-white" : "bg-gray-50"
                       }`}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="font-semibold text-blue-600">
-                          {employee.employee_id}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="font-medium text-gray-900">
-                          {employee.name}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                        {employee.position || "-"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                        {employee.division || "-"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                        {employee.department || "-"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <span className="font-semibold text-green-600">
-                          {formatNumber(employee.salary)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-700">
-                        {formatNumber(employee.company_provident_fund)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-700">
-                        {formatNumber(employee.employee_provident_fund)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-700">
-                        {formatNumber(employee.social_security_contribution)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-700">
-                        {formatNumber(employee.life_insurance_premium)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-700">
-                        {formatNumber(employee.housing_loan_interest)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-700">
-                        {formatNumber(employee.teacher_fund)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-700">
-                        {formatNumber(employee.rmf)}
-                      </td>
+                      {COLUMNS.map((col) => (
+                        <td
+                          key={col.key}
+                          className={`px-6 py-4 whitespace-nowrap text-${
+                            col.align
+                          } text-sm ${
+                            col.key === "employee_id"
+                              ? "font-semibold text-blue-600"
+                              : col.key === "name"
+                              ? "font-medium text-gray-900"
+                              : col.key === "salary"
+                              ? "font-semibold text-green-600"
+                              : "text-gray-700"
+                          }`}
+                        >
+                          {formatValue(
+                            emp[col.key as keyof Employee],
+                            col.format
+                          )}
+                        </td>
+                      ))}
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center gap-2">
                           <button
-                            onClick={() =>
-                              router.push(`/employee_update?id=${employee.id}`)
-                            }
+                            onClick={(e) => handleEdit(emp.id, e)}
                             className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
                             title="แก้ไข"
                           >
                             <Edit size={18} />
                           </button>
                           <button
-                            onClick={() => handleDelete(employee.id)}
+                            onClick={(e) => handleDelete(emp.id, e)}
                             className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
                             title="ลบ"
                           >

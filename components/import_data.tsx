@@ -1,15 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   X,
   Upload,
+  Download,
   FileSpreadsheet,
   AlertCircle,
   CheckCircle,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
+import ExcelJS from "exceljs";
 
 interface ImportDataProps {
   isOpen: boolean;
@@ -25,6 +27,7 @@ interface ImportedEmployee {
   gender?: string;
   birth_date?: string;
   mobile_phone?: string;
+  line_id?: string;
   national_id?: string;
   national_idcard_issue_date?: string;
   national_idcard_expiry_date?: string;
@@ -38,12 +41,15 @@ interface ImportedEmployee {
   spouse_title_name?: string;
   spouse_name?: string;
   number_of_children?: number;
+  children_in_school?: number;
+  children_notin_school?: number;
   emergency_contact_name?: string;
   emergency_contact_relation?: string;
   emergency_contact_phone?: string;
   position?: string;
   division?: string;
   department?: string;
+  shift?: string;
   employee_type?: string;
   start_working_date?: string;
   end_working_date?: string;
@@ -51,6 +57,7 @@ interface ImportedEmployee {
   start_lunch?: string;
   end_lunch?: string;
   end_time?: string;
+  working_status?: string;
   salary?: number;
   daily_wage?: number;
   hourly_wage?: number;
@@ -59,6 +66,8 @@ interface ImportedEmployee {
   tax_identification_number?: string;
   social_security_number?: string;
   provident_fund_number?: string;
+  providentfund_entry_date?: string;
+  providentfund_issuance_date?: string;
   studentloan_number?: string;
   retirement_mutual_fund_number?: string;
   rmf_number?: string;
@@ -89,6 +98,344 @@ interface ImportedEmployee {
   current_postcode?: string;
 }
 
+// Template configuration
+const TEMPLATE_CONFIG = {
+  personal_data: {
+    headers: [
+      "รหัสพนักงาน",
+      "คำนำหน้าชื่อ",
+      "ชื่อ-นามสกุล",
+      "ชื่อเล่น",
+      "เพศ",
+      "วันเกิด",
+      "มือถือ",
+      "LineID",
+      "เลขประชาชน",
+      "วันที่ออกบัตร",
+      "วันหมดอายุบัตร",
+      "สถานที่ออกบัตร",
+      "สัญชาติ",
+      "เชื้อชาติ",
+      "ศาสนา",
+      "ส่วนสูง",
+      "น้ำหนัก",
+      "สถานะภาพ",
+      "คำนำหน้าชื่อคู่สมรส",
+      "ชื่อ-นามสกุลคู่สมรส",
+      "จำนวนบุตร",
+      "จำนวนบุตรที่เรียนอยู่",
+      "จำนวนบุตรที่ศึกษาต่างประเทศหรือไม่ได้เรียน",
+      "ชื่อ-สกุลผู้ติดต่อฉุกเฉิน",
+      "ความสัมพันธ์ผู้ติดต่อฉุกเฉิน",
+      "เบอร์โทรผู้ติดต่อฉุกเฉิน",
+    ],
+    example: [
+      "20000000",
+      "นาย",
+      "ตัวอย่าง สมมติ",
+      "มาโนช",
+      "ชาย",
+      "1920-01-31",
+      "0999999999",
+      "line_id_example",
+      "1111111111235",
+      "2024-01-31",
+      "2030-01-31",
+      "สำนักงานเขตกรุงเทพ",
+      "ไทย",
+      "ไทย",
+      "พุทธ",
+      170,
+      60,
+      "สมรส",
+      "นาง",
+      "มานี มานะ",
+      1,
+      1,
+      0,
+      "มานี มานะ",
+      "ภรรยา",
+      "0888888888",
+    ],
+    dateFields: ["วันเกิด", "วันที่ออกบัตร", "วันหมดอายุบัตร"],
+    numFields: [
+      "ส่วนสูง",
+      "น้ำหนัก",
+      "จำนวนบุตร",
+      "จำนวนบุตรที่เรียนอยู่",
+      "จำนวนบุตรที่ศึกษาต่างประเทศหรือไม่ได้เรียน",
+    ],
+  },
+  personal_work_detail: {
+    headers: [
+      "รหัสพนักงาน",
+      "ชื่อ-นามสกุล",
+      "ตำแหน่ง",
+      "ฝ่าย",
+      "แผนก",
+      "กะ",
+      "ประเภทพนักงาน",
+      "วันที่เริ่มงาน",
+      "วันที่ออกงาน",
+      "เวลาเริ่มทำงาน",
+      "เวลาเริ่มพัก",
+      "หมดเวลาพัก",
+      "เวลาออกงาน",
+      "เงินเดือน",
+      "เงินรายวัน",
+      "เงินรายชั่วโมง",
+      "สถานะการทำงาน",
+    ],
+    example: [
+      "20000000",
+      "ตัวอย่าง สมมติ",
+      "ช่าง",
+      "001",
+      "001",
+      "1",
+      "ประจำ",
+      "2025-07-01",
+      null,
+      "08:00",
+      "12:00",
+      "13:00",
+      "17:00",
+      20000.0,
+      1000.0,
+      125.0,
+      "ปกติ",
+    ],
+    dateFields: ["วันที่เริ่มงาน", "วันที่ออกงาน"],
+    timeFields: ["เวลาเริ่มทำงาน", "เวลาเริ่มพัก", "หมดเวลาพัก", "เวลาออกงาน"],
+    moneyFields: ["เงินเดือน", "เงินรายวัน", "เงินรายชั่วโมง"],
+  },
+  personal_tax: {
+    headers: [
+      "รหัสพนักงาน",
+      "ชื่อ-นามสกุล",
+      "รหัสธนาคาร",
+      "เลขที่บัญชี",
+      "เลขประจำตัวผู้เสียภาษี",
+      "เลขประกันสังคม",
+      "เลขกองทุนสำรองเลี้ยงชีพ",
+      "วันเข้ากองทุนสำรองเลี้ยงชีพ",
+      "วันออกกองทุนสำรองเลี้ยงชีพ",
+      "เลข_กยศ",
+      "เลข_ภงด_91",
+      "เลข_rmf",
+      "เลขประกันชีวิต",
+    ],
+    example: [
+      "20000000",
+      "ตัวอย่าง สมมติ",
+      "004",
+      "9999999999",
+      "111111123456",
+      "111222333444",
+      "444555666777",
+      "2025-07-01",
+      null,
+      null,
+      null,
+      null,
+      null,
+    ],
+    dateFields: ["วันเข้ากองทุนสำรองเลี้ยงชีพ", "วันออกกองทุนสำรองเลี้ยงชีพ"],
+  },
+  personal_money: {
+    headers: [
+      "รหัสพนักงาน",
+      "ชื่อ-นามสกุล",
+      "หักประกันสังคม",
+      "กองทุนสำรองเลี้ยงชีพ(บริษัทสมทบ)",
+      "กองทุนสำรองเลี้ยงชีพ(พนักงานสมทบ)",
+      "หัก_กยศ",
+      "หัก_ภงด_91",
+      "หัก_rmf",
+      "หักเบี้ยประกันชีวิต",
+      "หักดอกเบี้ยเงินกู้ที่อยู่อาศัย",
+    ],
+    example: [
+      "20000000",
+      "ตัวอย่าง สมมติ",
+      750.0,
+      1000.0,
+      1000.0,
+      null,
+      null,
+      null,
+      null,
+      null,
+    ],
+    moneyFields: [
+      "หักประกันสังคม",
+      "กองทุนสำรองเลี้ยงชีพ(บริษัทสมทบ)",
+      "กองทุนสำรองเลี้ยงชีพ(พนักงานสมทบ)",
+      "หัก_กยศ",
+      "หัก_ภงด_91",
+      "หัก_rmf",
+      "หักเบี้ยประกันชีวิต",
+      "หักดอกเบี้ยเงินกู้ที่อยู่อาศัย",
+    ],
+  },
+  personal_registered_address: {
+    headers: [
+      "รหัสพนักงาน",
+      "ชื่อ-นามสกุล",
+      "บ้านเลขที่",
+      "หมู่ที่/หมู่บ้าน",
+      "ซอย",
+      "ถนน",
+      "แขวง/ตำบล",
+      "เขต/อำเภอ",
+      "จังหวัด",
+      "รหัสไปรษณีย์",
+    ],
+    example: [
+      "20000000",
+      "ตัวอย่าง สมมติ",
+      "100",
+      "5",
+      null,
+      null,
+      "บางซื่อ",
+      "บางซื่อ",
+      "กรุงเทพมหานคร",
+      "10800",
+    ],
+  },
+  personal_current_address: {
+    headers: [
+      "รหัสพนักงาน",
+      "ชื่อ-นามสกุล",
+      "บ้านเลขที่",
+      "หมู่ที่/หมู่บ้าน",
+      "ซอย",
+      "ถนน",
+      "แขวง/ตำบล",
+      "เขต/อำเภอ",
+      "จังหวัด",
+      "รหัสไปรษณีย์",
+    ],
+    example: [
+      "20000000",
+      "ตัวอย่าง สมมติ",
+      "100",
+      "5",
+      null,
+      null,
+      "บางซื่อ",
+      "บางซื่อ",
+      "กรุงเทพมหานคร",
+      "10800",
+    ],
+  },
+  fifty_tawi: {
+    headers: [
+      "รหัสพนักงาน",
+      "ชื่อ-นามสกุล",
+      "เลขประจำตัวผู้เสียภาษี",
+      "เลข_50ทวิ",
+    ],
+    example: ["20000000", "ตัวอย่าง สมมติ", "111111123456", "456789895425"],
+  },
+};
+
+// Download Excel template
+export const downloadTemplate = async () => {
+  const workbook = new ExcelJS.Workbook();
+  const formats = {
+    date: "yyyy-mm-dd",
+    time: "hh:mm",
+    num0: "#,##0",
+    num2: "#,##0.00",
+  };
+
+  Object.entries(TEMPLATE_CONFIG).forEach(([sheetName, config]) => {
+    const sheet = workbook.addWorksheet(sheetName);
+    sheet.addRows([config.headers, config.example]);
+
+    sheet.addTable({
+      name: `${sheetName}_table`,
+      ref: "A1",
+      headerRow: true,
+      style: { theme: "TableStyleMedium2", showRowStripes: true },
+      columns: config.headers.map((h) => ({ name: h, filterButton: true })),
+      rows: [config.example],
+    });
+
+    const setFormat = (fields: string[], format: string) => {
+      fields?.forEach((field) => {
+        const idx = config.headers.indexOf(field);
+        if (idx >= 0) sheet.getColumn(idx + 1).numFmt = format;
+      });
+    };
+
+    setFormat(config.dateFields || [], formats.date);
+    setFormat(config.timeFields || [], formats.time);
+    setFormat(config.numFields || [], formats.num0);
+    setFormat(config.moneyFields || [], formats.num2);
+
+    sheet.getRow(1).eachCell((cell) => {
+      cell.font = { bold: true };
+      cell.alignment = { vertical: "middle", horizontal: "center" };
+    });
+
+    sheet.columns.forEach((col) => (col.width = 20));
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const link = Object.assign(document.createElement("a"), {
+    href: URL.createObjectURL(blob),
+    download: "employee_full_template.xlsx",
+  });
+  link.click();
+};
+
+// Utility functions
+const formatExcelDate = (value: any): string => {
+  if (!value) return "";
+  if (typeof value === "number") {
+    const date = XLSX.SSF.parse_date_code(value);
+    return `${date.y}-${String(date.m).padStart(2, "0")}-${String(
+      date.d
+    ).padStart(2, "0")}`;
+  }
+  if (typeof value === "string") {
+    const ddmmyyyy = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (ddmmyyyy)
+      return `${ddmmyyyy[3]}-${ddmmyyyy[2].padStart(
+        2,
+        "0"
+      )}-${ddmmyyyy[1].padStart(2, "0")}`;
+
+    const yyyymmdd = value.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (yyyymmdd)
+      return `${yyyymmdd[1]}-${yyyymmdd[2].padStart(
+        2,
+        "0"
+      )}-${yyyymmdd[3].padStart(2, "0")}`;
+  }
+  return String(value);
+};
+
+const formatExcelTime = (value: any): string => {
+  if (!value) return "";
+  if (typeof value === "number") {
+    const hours = Math.floor(value * 24);
+    const minutes = Math.floor((value * 24 - hours) * 60);
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+      2,
+      "0"
+    )}`;
+  }
+  return String(value);
+};
+
 export default function ImportData({
   isOpen,
   onClose,
@@ -96,225 +443,150 @@ export default function ImportData({
 }: ImportDataProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [error, setError] = useState<string>("");
-  const [success, setSuccess] = useState<string>("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [previewData, setPreviewData] = useState<ImportedEmployee[]>([]);
 
-  if (!isOpen) return null;
+  const mapExcelData = useCallback(
+    (workbook: XLSX.WorkBook): ImportedEmployee[] => {
+      const getSheet = (name: string) =>
+        workbook.Sheets[name]
+          ? XLSX.utils.sheet_to_json(workbook.Sheets[name])
+          : [];
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+      const sheets = {
+        personal: getSheet("personal_data"),
+        work: getSheet("personal_work_detail"),
+        tax: getSheet("personal_tax"),
+        money: getSheet("personal_money"),
+        regAddr: getSheet("personal_registered_address"),
+        currAddr: getSheet("personal_current_address"),
+      };
 
-    const fileExtension = file.name.split(".").pop()?.toLowerCase();
-    if (!["xlsx", "xls", "csv"].includes(fileExtension || "")) {
-      setError("กรุณาเลือกไฟล์ Excel (.xlsx, .xls) หรือ CSV (.csv) เท่านั้น");
-      return;
-    }
+      const createMap = (data: any[]) =>
+        new Map(
+          data.map((row: any) => [String(row["รหัสพนักงาน"] || "").trim(), row])
+        );
 
-    setSelectedFile(file);
-    setError("");
-    setSuccess("");
-    parseFile(file);
-  };
+      const maps = {
+        work: createMap(sheets.work),
+        tax: createMap(sheets.tax),
+        money: createMap(sheets.money),
+        regAddr: createMap(sheets.regAddr),
+        currAddr: createMap(sheets.currAddr),
+      };
 
-  const parseFile = async (file: File) => {
-    const fileExtension = file.name.split(".").pop()?.toLowerCase();
+      return (sheets.personal as any[])
+        .map((row) => {
+          const empId = String(row["รหัสพนักงาน"] || "").trim();
+          if (!empId) return null;
 
-    try {
-      if (fileExtension === "csv") {
-        // Parse CSV (simple single sheet)
-        Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          complete: (results) => {
-            const data = results.data as any[];
-            const mappedData = mapCSVData(data);
-            setPreviewData(mappedData);
-          },
-          error: (error) => {
-            setError("เกิดข้อผิดพลาดในการอ่านไฟล์ CSV: " + error.message);
-          },
-        });
-      } else {
-        // Parse Excel with multiple sheets
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          try {
-            const data = e.target?.result;
-            const workbook = XLSX.read(data, { type: "binary" });
-            const mappedData = mapExcelData(workbook);
-            setPreviewData(mappedData);
-          } catch (err) {
-            setError("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel");
-          }
-        };
-        reader.readAsBinaryString(file);
-      }
-    } catch (err) {
-      setError("เกิดข้อผิดพลาดในการอ่านไฟล์");
-    }
-  };
+          const w = maps.work.get(empId) || {};
+          const t = maps.tax.get(empId) || {};
+          const m = maps.money.get(empId) || {};
+          const ra = maps.regAddr.get(empId) || {};
+          const ca = maps.currAddr.get(empId) || {};
 
-  const mapExcelData = (workbook: XLSX.WorkBook): ImportedEmployee[] => {
-    // อ่านข้อมูลจากแต่ละ sheet
-    const personalData = workbook.Sheets["personal_data"]
-      ? XLSX.utils.sheet_to_json(workbook.Sheets["personal_data"])
-      : [];
-    const workDetail = workbook.Sheets["personal_work_detail"]
-      ? XLSX.utils.sheet_to_json(workbook.Sheets["personal_work_detail"])
-      : [];
-    const taxData = workbook.Sheets["personal_tax"]
-      ? XLSX.utils.sheet_to_json(workbook.Sheets["personal_tax"])
-      : [];
-    const moneyData = workbook.Sheets["personal_money"]
-      ? XLSX.utils.sheet_to_json(workbook.Sheets["personal_money"])
-      : [];
-    const registeredAddress = workbook.Sheets["personal_registered_address"]
-      ? XLSX.utils.sheet_to_json(workbook.Sheets["personal_registered_address"])
-      : [];
-    const currentAddress = workbook.Sheets["personal_current_address"]
-      ? XLSX.utils.sheet_to_json(workbook.Sheets["personal_current_address"])
-      : [];
+          return {
+            employee_id: empId,
+            title_name: row["คำนำหน้าชื่อ"] || "",
+            name: row["ชื่อ-นามสกุล"] || "",
+            nickname: row["ชื่อเล่น"] || "",
+            gender: row["เพศ"] || "",
+            birth_date: formatExcelDate(row["วันเกิด"]),
+            mobile_phone: String(row["มือถือ"] || "").trim(),
+            line_id: String(row["LineID"] || "").trim(),
+            national_id: String(row["เลขประชาชน"] || "").trim(),
+            national_idcard_issue_date: formatExcelDate(row["วันที่ออกบัตร"]),
+            national_idcard_expiry_date: formatExcelDate(row["วันหมดอายุบัตร"]),
+            national_idcard_issued_place: row["สถานที่ออกบัตร"] || "",
+            nationality: row["สัญชาติ"] || "",
+            race: row["เชื้อชาติ"] || "",
+            religion: row["ศาสนา"] || "",
+            height: parseFloat(row["ส่วนสูง"]) || 0,
+            weight: parseFloat(row["น้ำหนัก"]) || 0,
+            marital_status: row["สถานะภาพ"] || "",
+            spouse_title_name: row["คำนำหน้าชื่อคู่สมรส"] || "",
+            spouse_name: row["ชื่อ-นามสกุลคู่สมรส"] || "",
+            number_of_children: parseInt(row["จำนวนบุตร"]) || 0,
+            children_in_school: parseInt(row["จำนวนบุตรที่เรียนอยู่"]) || 0,
+            children_notin_school:
+              parseInt(row["จำนวนบุตรที่ศึกษาต่างประเทศหรือไม่ได้เรียน"]) || 0,
+            emergency_contact_name: row["ชื่อ-สกุลผู้ติดต่อฉุกเฉิน"] || "",
+            emergency_contact_relation:
+              row["ความสัมพันธ์ผู้ติดต่อฉุกเฉิน"] || "",
+            emergency_contact_phone: String(
+              row["เบอร์โทรผู้ติดต่อฉุกเฉิน"] || ""
+            ),
+            position: w["ตำแหน่ง"] || "",
+            division: w["ฝ่าย"] || "",
+            department: w["แผนก"] || "",
+            shift: w["กะ"] || "",
+            employee_type: w["ประเภทพนักงาน"] || "",
+            start_working_date: formatExcelDate(w["วันที่เริ่มงาน"]),
+            end_working_date: formatExcelDate(w["วันที่ออกงาน"]),
+            start_time: formatExcelTime(w["เวลาเริ่มทำงาน"]),
+            start_lunch: formatExcelTime(w["เวลาเริ่มพัก"]),
+            end_lunch: formatExcelTime(w["หมดเวลาพัก"]),
+            end_time: formatExcelTime(w["เวลาออกงาน"]),
+            working_status: w["สถานะการทำงาน"] || "",
+            salary: parseFloat(w["เงินเดือน"]) || 0,
+            daily_wage: parseFloat(w["เงินรายวัน"]) || 0,
+            hourly_wage: parseFloat(w["เงินรายชั่วโมง"]) || 0,
+            bank_id: t["รหัสธนาคาร"] || "",
+            bank_account_number: String(t["เลขที่บัญชี"] || ""),
+            tax_identification_number: String(
+              t["เลขประจำตัวผู้เสียภาษี"] || ""
+            ),
+            social_security_number: String(t["เลขประกันสังคม"] || ""),
+            provident_fund_number: String(t["เลขกองทุนสำรองเลี้ยงชีพ"] || ""),
+            providentfund_entry_date: formatExcelDate(
+              t["วันเข้ากองทุนสำรองเลี้ยงชีพ"]
+            ),
+            providentfund_issuance_date: formatExcelDate(
+              t["วันออกกองทุนสำรองเลี้ยงชีพ"]
+            ),
+            studentloan_number: String(t["เลข_กยศ"] || ""),
+            retirement_mutual_fund_number: String(t["เลข_ภงด_91"] || ""),
+            rmf_number: String(t["เลข_rmf"] || ""),
+            life_insurance_number: String(t["เลขประกันชีวิต"] || ""),
+            social_security_contribution: parseFloat(m["หักประกันสังคม"]) || 0,
+            company_provident_fund:
+              parseFloat(m["กองทุนสำรองเลี้ยงชีพ(บริษัทสมทบ)"]) || 0,
+            employee_provident_fund:
+              parseFloat(m["กองทุนสำรองเลี้ยงชีพ(พนักงานสมทบ)"]) || 0,
+            student_loan_deduction: parseFloat(m["หัก_กยศ"]) || 0,
+            retirement_mutual_fund_deduction: parseFloat(m["หัก_ภงด_91"]) || 0,
+            rmf_deduction: parseFloat(m["หัก_rmf"]) || 0,
+            life_insurance_premium: parseFloat(m["หักเบี้ยประกันชีวิต"]) || 0,
+            housing_loan_interest:
+              parseFloat(m["หักดอกเบี้ยเงินกู้ที่อยู่อาศัย"]) || 0,
+            registered_house_no: ra["บ้านเลขที่"] || "",
+            registered_village: ra["หมู่ที่/หมู่บ้าน"] || "",
+            registered_soi: ra["ซอย"] || "",
+            registered_road: ra["ถนน"] || "",
+            registered_subdistrict: ra["แขวง/ตำบล"] || "",
+            registered_district: ra["เขต/อำเภอ"] || "",
+            registered_province: ra["จังหวัด"] || "",
+            registered_postcode: String(ra["รหัสไปรษณีย์"] || ""),
+            current_house_no: ca["บ้านเลขที่"] || "",
+            current_village: ca["หมู่ที่/หมู่บ้าน"] || "",
+            current_soi: ca["ซอย"] || "",
+            current_road: ca["ถนน"] || "",
+            current_subdistrict: ca["แขวง/ตำบล"] || "",
+            current_district: ca["เขต/อำเภอ"] || "",
+            current_province: ca["จังหวัด"] || "",
+            current_postcode: String(ca["รหัสไปรษณีย์"] || ""),
+          };
+        })
+        .filter(
+          (emp) => emp && emp.employee_id && emp.name
+        ) as ImportedEmployee[];
+    },
+    []
+  );
 
-    // สร้าง Map สำหรับค้นหาข้อมูลจาก employee_id
-    const workDetailMap = new Map(
-      workDetail.map((row: any) => [
-        String(row["รหัสพนักงาน"] || "").trim(),
-        row,
-      ])
-    );
-    const taxDataMap = new Map(
-      taxData.map((row: any) => [String(row["รหัสพนักงาน"] || "").trim(), row])
-    );
-    const moneyDataMap = new Map(
-      moneyData.map((row: any) => [
-        String(row["รหัสพนักงาน"] || "").trim(),
-        row,
-      ])
-    );
-    const registeredAddressMap = new Map(
-      registeredAddress.map((row: any) => [
-        String(row["รหัสพนักงาน"] || "").trim(),
-        row,
-      ])
-    );
-    const currentAddressMap = new Map(
-      currentAddress.map((row: any) => [
-        String(row["รหัสพนักงาน"] || "").trim(),
-        row,
-      ])
-    );
-
-    // รวมข้อมูลทั้งหมดโดยใช้ personal_data เป็นหลัก
-    const mappedData: ImportedEmployee[] = (personalData as any[])
-      .map((row) => {
-        const employeeId = String(row["รหัสพนักงาน"] || "").trim();
-        if (!employeeId) return null;
-
-        const work = workDetailMap.get(employeeId) || {};
-        const tax = taxDataMap.get(employeeId) || {};
-        const money = moneyDataMap.get(employeeId) || {};
-        const regAddr = registeredAddressMap.get(employeeId) || {};
-        const currAddr = currentAddressMap.get(employeeId) || {};
-
-        return {
-          employee_id: employeeId,
-          title_name: row["คำนำหน้าชื่อ"] || "",
-          name: row["ชื่อ-นามสกุล"] || "",
-          nickname: row["ชื่อเล่น"] || "",
-          gender: row["เพศ"] || "",
-          birth_date: formatExcelDate(row["วันเกิด"]) || "",
-          mobile_phone: String(row["มือถือ"] || "").trim(),
-          national_id: String(row["เลขประชาชน"] || "").trim(),
-          national_idcard_issue_date:
-            formatExcelDate(row["วันที่ออกบัตร"]) || "",
-          national_idcard_expiry_date:
-            formatExcelDate(row["วันหมดอายุบัตร"]) || "",
-          national_idcard_issued_place: row["สถานที่ออกบัตร"] || "",
-          nationality: row["สัญชาติ"] || "",
-          race: row["เชื้อชาติ"] || "",
-          religion: row["ศาสนา"] || "",
-          height: parseFloat(row["ส่วนสูง"]) || 0,
-          weight: parseFloat(row["น้ำหนัก"]) || 0,
-          marital_status: row["สถานะภาพ"] || "",
-          spouse_title_name: row["คำนำหน้าชื่อคู่สมรส"] || "",
-          spouse_name: row["ชื่อ-นามสกุลคู่สมรส"] || "",
-          number_of_children: parseInt(row["จำนวนบุตร"]) || 0,
-          emergency_contact_name: row["ชื่อ-สกุลผู้ติดต่อฉุกเฉิน"] || "",
-          emergency_contact_relation: row["ความสัมพันธ์ผู้ติดต่อฉุกเฉิน"] || "",
-          emergency_contact_phone: String(
-            row["เบอร์โทรผู้ติดต่อฉุกเฉิน"] || ""
-          ),
-          // From personal_work_detail
-          position: work["ตำแหน่ง"] || "",
-          division: work["ฝ่าย"] || "",
-          department: work["แผนก"] || "",
-          employee_type: work["ประเภทพนักงาน"] || "",
-          start_working_date: formatExcelDate(work["วันที่เริ่มงาน"]) || "",
-          end_working_date: formatExcelDate(work["วันที่ออกงาน"]) || "",
-          start_time: formatExcelTime(work["เวลาเริ่มทำงาน"]) || "",
-          start_lunch: formatExcelTime(work["เวลาเริ่มพัก"]) || "",
-          end_lunch: formatExcelTime(work["หมดเวลาพัก"]) || "",
-          end_time: formatExcelTime(work["เวลาออกงาน"]) || "",
-          salary: parseFloat(work["เงินเดือน"]) || 0,
-          daily_wage: parseFloat(work["เงินรายวัน"]) || 0,
-          hourly_wage: parseFloat(work["เงินรายชั่วโมง"]) || 0,
-          // From personal_tax
-          bank_id: tax["รหัสธนาคาร"] || "",
-          bank_account_number: String(tax["เลขที่บัญชี"] || ""),
-          tax_identification_number: String(
-            tax["เลขประจำตัวผู้เสียภาษี"] || ""
-          ),
-          social_security_number: String(tax["เลขประกันสังคม"] || ""),
-          provident_fund_number: String(tax["เลขกองทุนสำรองเลี้ยงชีพ"] || ""),
-          studentloan_number: String(tax["เลข_กยศ"] || ""),
-          retirement_mutual_fund_number: String(tax["เลข_ภงด_91"] || ""),
-          rmf_number: String(tax["เลข_rmf"] || ""),
-          life_insurance_number: String(tax["เลขประกันชีวิต"] || ""),
-          // From personal_money
-          social_security_contribution:
-            parseFloat(money["หักประกันสังคม"]) || 0,
-          company_provident_fund:
-            parseFloat(money["กองทุนสำรองเลี้ยงชีพ(บริษัทสมทบ)"]) || 0,
-          employee_provident_fund:
-            parseFloat(money["กองทุนสำรองเลี้ยงชีพ(พนักงานสมทบ)"]) || 0,
-          student_loan_deduction: parseFloat(money["หัก_กยศ"]) || 0,
-          retirement_mutual_fund_deduction:
-            parseFloat(money["หัก_ภงด_91"]) || 0,
-          rmf_deduction: parseFloat(money["หัก_rmf"]) || 0,
-          life_insurance_premium: parseFloat(money["หักเบี้ยประกันชีวิต"]) || 0,
-          housing_loan_interest:
-            parseFloat(money["หักดอกเบี้ยเงินกู้ที่อยู่อาศัย"]) || 0,
-          // From personal_registered_address
-          registered_house_no: regAddr["บ้านเลขที่"] || "",
-          registered_village: regAddr["หมู่ที่/หมู่บ้าน"] || "",
-          registered_soi: regAddr["ซอย"] || "",
-          registered_road: regAddr["ถนน"] || "",
-          registered_subdistrict: regAddr["แขวง/ตำบล"] || "",
-          registered_district: regAddr["เขต/อำเภอ"] || "",
-          registered_province: regAddr["จังหวัด"] || "",
-          registered_postcode: String(regAddr["รหัสไปรษณีย์"] || ""),
-          // From personal_current_address
-          current_house_no: currAddr["บ้านเลขที่"] || "",
-          current_village: currAddr["หมู่ที่/หมู่บ้าน"] || "",
-          current_soi: currAddr["ซอย"] || "",
-          current_road: currAddr["ถนน"] || "",
-          current_subdistrict: currAddr["แขวง/ตำบล"] || "",
-          current_district: currAddr["เขต/อำเภอ"] || "",
-          current_province: currAddr["จังหวัด"] || "",
-          current_postcode: String(currAddr["รหัสไปรษณีย์"] || ""),
-        };
-      })
-      .filter(
-        (emp) => emp !== null && emp.employee_id && emp.name
-      ) as ImportedEmployee[];
-
-    return mappedData;
-  };
-
-  const mapCSVData = (data: any[]): ImportedEmployee[] => {
-    // สำหรับ CSV ที่มีข้อมูลแบบง่าย (ไม่มีหลาย sheet)
+  const mapCSVData = useCallback((data: any[]): ImportedEmployee[] => {
     return data
       .map((row) => ({
         employee_id: String(row.employee_id || row["รหัสพนักงาน"] || "").trim(),
@@ -333,67 +605,101 @@ export default function ImportData({
         national_id: String(row.national_id || row["เลขประชาชน"] || ""),
       }))
       .filter((emp) => emp.employee_id && emp.name) as ImportedEmployee[];
-  };
+  }, []);
 
-  const formatExcelDate = (value: any): string => {
-    if (!value) return "";
+  const parseFile = useCallback(
+    (file: File) => {
+      const ext = file.name.split(".").pop()?.toLowerCase();
 
-    // ถ้าเป็น Excel serial date
-    if (typeof value === "number") {
-      const date = XLSX.SSF.parse_date_code(value);
-      return `${date.y}-${String(date.m).padStart(2, "0")}-${String(
-        date.d
-      ).padStart(2, "0")}`;
-    }
-
-    // ถ้าเป็นข้อความวันที่แล้ว
-    if (typeof value === "string") {
-      // ลองแปลงรูปแบบต่างๆ
-      const dateFormats = [
-        /(\d{1,2})\/(\d{1,2})\/(\d{4})/, // DD/MM/YYYY
-        /(\d{4})-(\d{1,2})-(\d{1,2})/, // YYYY-MM-DD
-      ];
-
-      for (const format of dateFormats) {
-        const match = value.match(format);
-        if (match) {
-          if (format === dateFormats[0]) {
-            // DD/MM/YYYY -> YYYY-MM-DD
-            return `${match[3]}-${match[2].padStart(
-              2,
-              "0"
-            )}-${match[1].padStart(2, "0")}`;
-          } else {
-            // YYYY-MM-DD (already correct format)
-            return `${match[1]}-${match[2].padStart(
-              2,
-              "0"
-            )}-${match[3].padStart(2, "0")}`;
+      if (ext === "csv") {
+        Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) =>
+            setPreviewData(mapCSVData(results.data as any[])),
+          error: (err) =>
+            setError(`เกิดข้อผิดพลาดในการอ่านไฟล์ CSV: ${err.message}`),
+        });
+      } else {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const workbook = XLSX.read(e.target?.result, { type: "binary" });
+            setPreviewData(mapExcelData(workbook));
+          } catch {
+            setError("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel");
           }
-        }
+        };
+        reader.readAsBinaryString(file);
       }
-    }
+    },
+    [mapCSVData, mapExcelData]
+  );
 
-    return String(value);
-  };
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-  const formatExcelTime = (value: any): string => {
-    if (!value) return "";
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      if (!["xlsx", "xls", "csv"].includes(ext || "")) {
+        setError("กรุณาเลือกไฟล์ Excel (.xlsx, .xls) หรือ CSV (.csv) เท่านั้น");
+        return;
+      }
 
-    // ถ้าเป็นเลขทศนิยม (Excel time format)
-    if (typeof value === "number") {
-      const hours = Math.floor(value * 24);
-      const minutes = Math.floor((value * 24 - hours) * 60);
-      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
-        2,
-        "0"
-      )}`;
-    }
+      setSelectedFile(file);
+      setError("");
+      setSuccess("");
+      parseFile(file);
+    },
+    [parseFile]
+  );
 
-    return String(value);
-  };
+  const processImport = useCallback(
+    async (data: ImportedEmployee[]) => {
+      if (data.length === 0) {
+        setError("ไม่พบข้อมูลที่ถูกต้องในไฟล์");
+        setImporting(false);
+        return;
+      }
 
-  const handleImport = async () => {
+      try {
+        const response = await fetch("/api/employees/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ employees: data }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          let msg = `นำเข้าข้อมูลสำเร็จ ${result.inserted} รายการ`;
+          if (result.skipped?.length > 0) {
+            msg += `\n\nข้ามข้อมูลที่มีอยู่แล้ว ${result.skipped.length} รายการ:`;
+            result.skipped.forEach((item: any) => {
+              msg += `\n- รหัส: ${item.employee_id} | ชื่อ: ${item.name}`;
+            });
+          }
+          setSuccess(msg);
+          setTimeout(() => {
+            onImportSuccess();
+            handleClose();
+          }, 3000);
+        } else {
+          setError(
+            `เกิดข้อผิดพลาด: ${result.error || "ไม่สามารถนำเข้าข้อมูลได้"}`
+          );
+        }
+      } catch {
+        setError("เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
+      } finally {
+        setImporting(false);
+      }
+    },
+    [onImportSuccess]
+  );
+
+  const handleImport = useCallback(async () => {
     if (!selectedFile) {
       setError("กรุณาเลือกไฟล์");
       return;
@@ -403,102 +709,51 @@ export default function ImportData({
     setError("");
     setSuccess("");
 
-    try {
-      const fileExtension = selectedFile.name.split(".").pop()?.toLowerCase();
-      let allData: ImportedEmployee[] = [];
+    const ext = selectedFile.name.split(".").pop()?.toLowerCase();
 
-      if (fileExtension === "csv") {
-        Papa.parse(selectedFile, {
-          header: true,
-          skipEmptyLines: true,
-          complete: async (results) => {
-            allData = mapCSVData(results.data as any[]);
-            await processImport(allData);
-          },
-          error: (error) => {
-            setError("เกิดข้อผิดพลาดในการอ่านไฟล์ CSV");
-            setImporting(false);
-          },
-        });
-      } else {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          try {
-            const data = e.target?.result;
-            const workbook = XLSX.read(data, { type: "binary" });
-            allData = mapExcelData(workbook);
-            await processImport(allData);
-          } catch (err) {
-            setError("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel");
-            setImporting(false);
-          }
-        };
-        reader.readAsBinaryString(selectedFile);
-      }
-    } catch (err) {
-      setError("เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
-      setImporting(false);
-    }
-  };
-
-  const processImport = async (data: ImportedEmployee[]) => {
-    try {
-      if (data.length === 0) {
-        setError("ไม่พบข้อมูลที่ถูกต้องในไฟล์");
-        setImporting(false);
-        return;
-      }
-
-      const response = await fetch("/api/employees/import", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+    if (ext === "csv") {
+      Papa.parse(selectedFile, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          await processImport(mapCSVData(results.data as any[]));
         },
-        body: JSON.stringify({ employees: data }),
+        error: () => {
+          setError("เกิดข้อผิดพลาดในการอ่านไฟล์ CSV");
+          setImporting(false);
+        },
       });
-
-      const result = await response.json();
-
-      if (result.success) {
-        let message = `นำเข้าข้อมูลสำเร็จ ${result.inserted} รายการ`;
-
-        if (result.skipped && result.skipped.length > 0) {
-          message += `\n\nข้ามข้อมูลที่มีอยู่แล้ว ${result.skipped.length} รายการ:`;
-          result.skipped.forEach((item: any) => {
-            message += `\n- รหัส: ${item.employee_id} | ชื่อ: ${item.name}`;
-          });
+    } else {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const workbook = XLSX.read(e.target?.result, { type: "binary" });
+          await processImport(mapExcelData(workbook));
+        } catch {
+          setError("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel");
+          setImporting(false);
         }
-
-        setSuccess(message);
-        setTimeout(() => {
-          onImportSuccess();
-          handleClose();
-        }, 3000);
-      } else {
-        setError(
-          "เกิดข้อผิดพลาด: " + (result.error || "ไม่สามารถนำเข้าข้อมูลได้")
-        );
-      }
-    } catch (err) {
-      setError("เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
-    } finally {
-      setImporting(false);
+      };
+      reader.readAsBinaryString(selectedFile);
     }
-  };
+  }, [selectedFile, mapCSVData, mapExcelData, processImport]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setSelectedFile(null);
     setError("");
     setSuccess("");
     setPreviewData([]);
     onClose();
-  };
+  }, [onClose]);
+
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50">
-          <div className="flex items-center gap-3">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-blue-50 to-purple-50">
+          <div className="flex items-center gap-3 flex-1">
             <div className="bg-blue-100 p-3 rounded-lg">
               <Upload className="text-blue-600" size={24} />
             </div>
@@ -511,6 +766,15 @@ export default function ImportData({
               </p>
             </div>
           </div>
+
+          <button
+            onClick={downloadTemplate}
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl flex items-center gap-2 mr-4"
+          >
+            <Download size={20} />
+            ดาวน์โหลด Template
+          </button>
+
           <button
             onClick={handleClose}
             className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
@@ -520,6 +784,7 @@ export default function ImportData({
         </div>
 
         <div className="p-6">
+          {/* File Upload */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               เลือกไฟล์
@@ -548,27 +813,25 @@ export default function ImportData({
             </div>
           </div>
 
+          {/* Info Box */}
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
               <AlertCircle size={18} />
-              รูปแบบไฟล์ Excel, CSV ที่รองรับ
+              รูปแบบไฟล์ Excel ที่รองรับ
             </h3>
             <div className="text-sm text-blue-700 space-y-2">
               <p>
                 <strong>Sheet ที่ต้องมี:</strong>
               </p>
               <ul className="ml-4 space-y-1">
-                <li>• personal_data</li>
-                <li>• personal_work_detail</li>
-                <li>• personal_tax</li>
-                <li>• personal_money</li>
-                <li>• personal_registered_address</li>
-                <li>• personal_current_address</li>
-                <li>• fifty_tawi</li>
+                {Object.keys(TEMPLATE_CONFIG).map((sheet) => (
+                  <li key={sheet}>• {sheet}</li>
+                ))}
               </ul>
             </div>
           </div>
 
+          {/* Preview Table */}
           {previewData.length > 0 && (
             <div className="mb-6">
               <h3 className="font-semibold text-gray-800 mb-3">
@@ -599,9 +862,9 @@ export default function ImportData({
                     </tr>
                   </thead>
                   <tbody>
-                    {previewData.map((emp, index) => (
+                    {previewData.map((emp, idx) => (
                       <tr
-                        key={index}
+                        key={idx}
                         className="border-t border-gray-200 hover:bg-gray-50"
                       >
                         <td className="px-4 py-2">{emp.employee_id}</td>
@@ -620,6 +883,7 @@ export default function ImportData({
             </div>
           )}
 
+          {/* Error Message */}
           {error && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
               <AlertCircle
@@ -630,6 +894,7 @@ export default function ImportData({
             </div>
           )}
 
+          {/* Success Message */}
           {success && (
             <div className="mb-4 bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-start gap-3">
@@ -637,15 +902,12 @@ export default function ImportData({
                   className="text-green-600 flex-shrink-0 mt-0.5"
                   size={20}
                 />
-                <div className="flex-1">
-                  <p className="text-green-800 whitespace-pre-line">
-                    {success}
-                  </p>
-                </div>
+                <p className="text-green-800 whitespace-pre-line">{success}</p>
               </div>
             </div>
           )}
 
+          {/* Action Buttons */}
           <div className="flex gap-3 justify-end">
             <button
               onClick={handleClose}
@@ -660,7 +922,7 @@ export default function ImportData({
             >
               {importing ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                   กำลังนำเข้า...
                 </>
               ) : (

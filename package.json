@@ -11,6 +11,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.80.0",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "lucide-react": "^0.553.0",
     "next": "16.0.1",
     "papaparse": "^5.5.3",
@@ -18,6 +19,7 @@
     "react-dom": "19.2.0",
     "react-thailand-address-typeahead": "^2.0.1",
     "react-time-picker": "^8.0.2",
+    "rimraf": "^6.1.0",
     "tailwind-merge": "^3.4.0",
     "thai-address-autocomplete-react": "^1.2.2",
     "xlsx": "^0.18.5"
