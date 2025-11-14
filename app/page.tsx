@@ -44,7 +44,12 @@ interface Employee {
 
 type FilterState = Record<string, string[]>;
 
-const COLUMNS = [
+const COLUMNS: Array<{
+  key: keyof Employee;
+  label: string;
+  align: "left" | "right";
+  format?: "number";
+}> = [
   { key: "employee_id", label: "รหัสพนักงาน", align: "left" },
   { key: "name", label: "ชื่อ-นามสกุล", align: "left" },
   { key: "line_id", label: "Line ID", align: "left" },
@@ -70,7 +75,7 @@ const COLUMNS = [
   { key: "retirement_mutual_fund_number", label: "เลข ภงด.91", align: "left" },
   { key: "rmf_number", label: "เลข RMF", align: "left" },
   { key: "life_insurance_number", label: "เลขประกันชีวิต", align: "left" },
-] as const;
+];
 
 // Fixed button styles mapping
 const BUTTON_STYLES = {
